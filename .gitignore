@@ -1,0 +1,16 @@
+build/
+.cmake/
+CMakeUserPresets.json
+compile_commands.json
+
+.DS_Store
+.idea/
+.vscode/
+*.user
+*.swp
+*~
+
+runtime/**/bin/
+runtime/**/download/
+runtime/**/cache/
+*.log
