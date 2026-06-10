@@ -1,8 +1,27 @@
 #include "ConfigManager.h"
 
+#include "RuntimePaths.h"
+
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
+
+namespace {
+
+QString executableSetting(const QSettings& settings, const QString& key, const QString& fallback)
+{
+    const QString configured = settings.value(key).toString();
+    if (configured.isEmpty()) {
+        return fallback;
+    }
+    if (configured.contains('/') || configured.contains('\\')) {
+        return configured;
+    }
+    return fallback;
+}
+
+}
 
 ConfigManager::ConfigManager(QObject* parent)
     : QObject(parent),
@@ -50,17 +69,17 @@ QString ConfigManager::mempoolDataDir() const
 
 QString ConfigManager::bitcoinExecutable() const
 {
-    return m_settings.value("executables/bitcoind", "bitcoind").toString();
+    return executableSetting(m_settings, "executables/bitcoind", RuntimePaths::executable("bitcoin/bin/bitcoind"));
 }
 
 QString ConfigManager::electrsExecutable() const
 {
-    return m_settings.value("executables/electrs", "electrs").toString();
+    return executableSetting(m_settings, "executables/electrs", RuntimePaths::executable("electrs/bin/electrs"));
 }
 
 QString ConfigManager::nodeExecutable() const
 {
-    return m_settings.value("executables/node", "node").toString();
+    return executableSetting(m_settings, "executables/node", RuntimePaths::executable("node/bin/node"));
 }
 
 void ConfigManager::setExecutable(const QString& key, const QString& path)

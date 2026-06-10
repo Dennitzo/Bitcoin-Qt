@@ -1,5 +1,10 @@
 #include "MempoolService.h"
 
+#include "../core/RuntimePaths.h"
+
+#include <QDir>
+#include <QProcessEnvironment>
+#include <QFileInfo>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
@@ -47,9 +52,20 @@ QUrl MempoolService::frontendUrl() const
 
 void MempoolService::startBackend()
 {
+    const QString node = config().nodeExecutable();
+    const QString script = QDir(RuntimePaths::runtimeRoot()).filePath("mempool/backend/server.js");
+    if (!RuntimePaths::isExecutableAvailable(node) || !QFileInfo::exists(script)) {
+        setState(ServiceState::Error, QString("Mempool Backend Runtime fehlt: %1 / %2").arg(node, script));
+        return;
+    }
+
     setState(ServiceState::Starting, "Backend startet");
-    m_backend.setWorkingDirectory(config().mempoolDataDir());
-    m_backend.start(config().nodeExecutable(), {"backend/server.js"});
+    m_backend.setWorkingDirectory(QDir(RuntimePaths::runtimeRoot()).filePath("mempool"));
+    QProcessEnvironment backendEnv = QProcessEnvironment::systemEnvironment();
+    backendEnv.insert("MEMPOOL_BACKEND_PORT", QString::number(config().mempoolBackendPort()));
+    backendEnv.insert("MEMPOOL_HTTP_PORT", QString::number(config().mempoolBackendPort()));
+    m_backend.setProcessEnvironment(backendEnv);
+    m_backend.start(node, {"backend/server.js"});
     m_backendHealth.start();
 }
 
@@ -58,9 +74,20 @@ void MempoolService::startFrontend()
     if (m_frontend.state() != QProcess::NotRunning) {
         return;
     }
+    const QString node = config().nodeExecutable();
+    const QString script = QDir(RuntimePaths::runtimeRoot()).filePath("mempool/frontend/server.js");
+    if (!RuntimePaths::isExecutableAvailable(node) || !QFileInfo::exists(script)) {
+        setState(ServiceState::Error, QString("Mempool Frontend Runtime fehlt: %1 / %2").arg(node, script));
+        return;
+    }
+
     setState(ServiceState::Starting, "Frontend startet");
-    m_frontend.setWorkingDirectory(config().mempoolDataDir());
-    m_frontend.start(config().nodeExecutable(), {"frontend/server.js"});
+    m_frontend.setWorkingDirectory(QDir(RuntimePaths::runtimeRoot()).filePath("mempool"));
+    QProcessEnvironment frontendEnv = QProcessEnvironment::systemEnvironment();
+    frontendEnv.insert("MEMPOOL_FRONTEND_PORT", QString::number(config().mempoolFrontendPort()));
+    frontendEnv.insert("PORT", QString::number(config().mempoolFrontendPort()));
+    m_frontend.setProcessEnvironment(frontendEnv);
+    m_frontend.start(node, {"frontend/server.js"});
     m_frontendHealth.start();
 }
 

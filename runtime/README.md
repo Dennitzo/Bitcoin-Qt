@@ -1,14 +1,22 @@
 # Runtime Assets
 
-This directory is reserved for locally managed service artifacts that are shipped,
-downloaded, or linked beside the native Qt application.
+This directory contains locally managed service artifacts that are shipped beside
+the native Qt application. The desktop app resolves services from this directory
+instead of relying on binaries from the user's shell `PATH`.
 
 Expected layout:
 
 ```text
 runtime/
-  bitcoind/
+  bitcoin/
+    bin/
+      bitcoind
   electrs/
+    bin/
+      electrs
+  node/
+    bin/
+      node
   mempool/
     backend/
     frontend/
@@ -25,6 +33,20 @@ large mutable node data on an internal or external disk:
   logs/
 ```
 
-The current scaffold starts `bitcoind`, `electrs`, and `node` from PATH by
-default. Service-specific executable paths can later be exposed in the settings
-screen or set through `ConfigManager`.
+Build or stage the runtime with:
+
+```bash
+./scripts/build-runtime.sh
+```
+
+Individual services can be built with:
+
+```bash
+./scripts/build-bitcoin-core.sh
+./scripts/build-electrs.sh
+./scripts/build-node-runtime.sh
+./scripts/build-mempool.sh
+```
+
+For packaged `.app` bundles, copy this `runtime/` directory into
+`BitcoinNodeDesktop.app/Contents/Resources/runtime`.

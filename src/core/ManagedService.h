@@ -37,7 +37,9 @@ protected:
     void scheduleRestart();
     QProcess& process();
     ConfigManager& config();
+    const ConfigManager& config() const;
     LogManager& logs();
+    const LogManager& logs() const;
 
     virtual void handleStdout(const QString& line);
     virtual void handleStderr(const QString& line);

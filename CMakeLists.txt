@@ -35,6 +35,8 @@ qt_add_executable(BitcoinNodeDesktop
     src/core/ManagedService.h
     src/core/RpcClient.cpp
     src/core/RpcClient.h
+    src/core/RuntimePaths.cpp
+    src/core/RuntimePaths.h
     src/core/ServiceManager.cpp
     src/core/ServiceManager.h
     src/services/BitcoinCoreService.cpp
@@ -79,6 +81,14 @@ if(APPLE)
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Bitcoin Node Desktop"
         MACOSX_BUNDLE_GUI_IDENTIFIER "org.bitcoin.node.desktop"
+    )
+
+    add_custom_command(TARGET BitcoinNodeDesktop POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/runtime"
+            "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources/runtime"
+        COMMENT "Copying owned service runtime into app bundle"
     )
 endif()
 

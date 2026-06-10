@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 #include <QWebEnginePage>
 #include <QWebEngineScript>
+#include <QWebEngineScriptCollection>
 
 MainWindow::MainWindow(ConfigManager& config, LogManager& logs, ServiceManager& services, QWidget* parent)
     : QMainWindow(parent),

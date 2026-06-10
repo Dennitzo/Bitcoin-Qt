@@ -1,6 +1,7 @@
 #include "ManagedService.h"
 
 #include <QDir>
+#include <QFileInfo>
 
 ManagedService::ManagedService(QString id, QString label, ConfigManager& config, LogManager& logs, QObject* parent)
     : QObject(parent),
@@ -80,6 +81,16 @@ void ManagedService::startProcess(const QString& program, const QStringList& arg
     }
 
     m_stopping = false;
+
+    const QFileInfo programInfo(program);
+    if (!programInfo.exists() || !programInfo.isExecutable()) {
+        const QString message = QString("%1 nicht gefunden oder nicht ausführbar: %2").arg(m_label, program);
+        logs().append(m_id, message);
+        setState(ServiceState::Error, message);
+        Q_EMIT crashed(m_id, message);
+        return;
+    }
+
     setState(ServiceState::Starting, "Startet");
 
     if (!workingDirectory.isEmpty()) {
@@ -123,7 +134,17 @@ ConfigManager& ManagedService::config()
     return m_config;
 }
 
+const ConfigManager& ManagedService::config() const
+{
+    return m_config;
+}
+
 LogManager& ManagedService::logs()
+{
+    return m_logs;
+}
+
+const LogManager& ManagedService::logs() const
 {
     return m_logs;
 }

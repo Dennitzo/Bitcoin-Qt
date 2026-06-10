@@ -26,7 +26,7 @@ QString stateText(ServiceState state)
     return "Unbekannt";
 }
 
-QLabel* metric(const QString& title, const QString& value, QWidget* parent)
+QLabel* createMetricLabel(const QString& title, const QString& value, QWidget* parent)
 {
     auto* label = new QLabel(QString("<span style='color:#697386'>%1</span><br><b style='font-size:24px'>%2</b>").arg(title, value), parent);
     label->setMinimumHeight(72);
@@ -50,14 +50,14 @@ DashboardPage::DashboardPage(QWidget* parent)
     grid->setHorizontalSpacing(18);
     grid->setVerticalSpacing(18);
 
-    m_blockHeight = metric("Blockhöhe", "0", this);
-    m_sync = metric("Sync", "0.00 %", this);
-    m_peers = metric("Peers", "0", this);
-    m_network = metric("Netzwerk", "unknown", this);
-    m_bitcoin = metric("Bitcoin Core", "Gestoppt", this);
-    m_electrs = metric("Electrs", "Gestoppt", this);
-    m_mempool = metric("Mempool", "Offline", this);
-    m_system = metric("System", "CPU/RAM folgt", this);
+    m_blockHeight = createMetricLabel("Blockhöhe", "0", this);
+    m_sync = createMetricLabel("Sync", "0.00 %", this);
+    m_peers = createMetricLabel("Peers", "0", this);
+    m_network = createMetricLabel("Netzwerk", "unknown", this);
+    m_bitcoin = createMetricLabel("Bitcoin Core", "Gestoppt", this);
+    m_electrs = createMetricLabel("Electrs", "Gestoppt", this);
+    m_mempool = createMetricLabel("Mempool", "Offline", this);
+    m_system = createMetricLabel("System", "CPU/RAM folgt", this);
 
     const QList<QLabel*> labels{m_blockHeight, m_sync, m_peers, m_network, m_bitcoin, m_electrs, m_mempool, m_system};
     for (int i = 0; i < labels.size(); ++i) {
