@@ -4,6 +4,7 @@ Native Qt 6 desktop application for managing a local Bitcoin full node stack:
 
 - Bitcoin Core (`bitcoind`)
 - electrs
+- MariaDB for the local Mempool database
 - Mempool backend
 - Mempool frontend embedded with Qt WebEngine / Chromium
 - Public Pool backend
@@ -18,9 +19,10 @@ the full node data should live outside the system disk.
 - Per-service start/stop controls and persisted service state
 - First-run disk selection for running the full node from an external drive
 - Dashboard with Bitcoin Core sync progress, peer count, Mempool state, Public
-  Pool state, and storage usage
+  Pool state, Mempool database state, and storage usage
 - Dedicated sidebar pages for Dashboard, Bitcoind logs, electrs logs, Mempool,
   Public Pool, and Settings
+- Persisted WebView navigation for Mempool and Public Pool pages
 - Local-only service orchestration through `QProcess`
 - Qt WebChannel bridge for future native/web integration
 
@@ -87,6 +89,8 @@ Expected runtime layout:
 runtime/
   bitcoin/bin/bitcoind
   electrs/bin/electrs
+  mariadb/bin/mariadbd
+  mariadb/bin/mariadb-install-db
   node/bin/node
   node/bin/npm
   mempool/backend/
@@ -106,6 +110,7 @@ Build individual components:
 ```bash
 ./scripts/build-bitcoin-core.sh
 ./scripts/build-electrs.sh
+./scripts/build-mariadb-runtime-macos.sh
 ./scripts/build-node-runtime.sh
 ./scripts/build-mempool.sh
 ./scripts/build-public-pool.sh
@@ -134,10 +139,14 @@ mutable node data and logs:
 <selected-disk>/
   bitcoin/
   electrs/
+  mempool-db/
   mempool/
   public-pool/
   logs/
 ```
+
+Runtime artifacts are intentionally ignored by git. They are reproducible with
+the scripts above and should not be committed to the repository.
 
 ## Service Startup
 
@@ -150,12 +159,14 @@ The expected dependency order is:
 1. Start Bitcoin Core.
 2. Wait until Bitcoin Core RPC is available.
 3. Start electrs.
-4. Start Mempool after electrs is reachable.
-5. Start Public Pool after Bitcoin Core RPC is reachable.
+4. Start the Mempool database.
+5. Start Mempool after the database is reachable.
+6. Start Public Pool after Bitcoin Core RPC is reachable.
 
 Mempool and Public Pool are loaded locally in embedded Qt WebEngine views. The
 app is designed to keep these pages inside Bitcoin-Qt instead of opening an
-external browser.
+external browser. The last visited local page is saved per WebView and restored
+on the next launch when it belongs to the same local service origin.
 
 ## macOS 12 Notes
 

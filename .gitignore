@@ -1,10 +1,17 @@
+# Build output
 build/
 .cmake/
 CMakeUserPresets.json
 compile_commands.json
 *.app/
 *.dSYM/
+*.dmg
+*.pkg
+*.zip
+*.tar
+*.tar.*
 
+# Editor and OS files
 .DS_Store
 .idea/
 .vscode/
@@ -12,16 +19,27 @@ compile_commands.json
 *.swp
 *~
 
-runtime/bitcoin/
-runtime/electrs/
-runtime/mempool/
-runtime/node/
-runtime/mariadb/
-runtime/public-pool/
+# App-owned service runtime. These directories contain large binaries,
+# package-manager installs, node_modules, compiled frontends, and cloned
+# upstream projects. Keep only the documentation file in git.
+runtime/*
+!runtime/
 !runtime/README.md
-!runtime/mariadb/
-!runtime/mariadb/README.md
+
+# Local node/frontend artifacts
 node_modules/
 dist/
 coverage/
+
+# Local mutable data and logs
+config/
+logs/
 *.log
+*.pid
+*.sock
+*.err
+
+# Secrets and local environment overrides
+.env
+.env.*
+!.env.example

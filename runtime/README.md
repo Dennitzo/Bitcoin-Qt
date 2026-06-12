@@ -21,6 +21,7 @@ runtime/
   mariadb/
     bin/
       mariadbd
+      mariadb-install-db
     scripts/
       mariadb-install-db
   mempool/
@@ -49,6 +50,10 @@ Build or stage the runtime with:
 ```bash
 ./scripts/build-runtime.sh
 ```
+
+The runtime directories are generated artifacts and are ignored by git. Rebuild
+or restage them locally instead of committing binaries, package-manager output,
+compiled frontend bundles, or `node_modules`.
 
 Individual services can be built with:
 
