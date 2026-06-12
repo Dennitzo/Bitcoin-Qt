@@ -87,17 +87,8 @@ function sendFile(res, file) {
     }
     if (path.basename(file) === 'index.html') {
       const importMap = '<script type="importmap">{"imports":{"@kurkle/color":"./vendor/@kurkle/color/color.esm.js"}}</script>';
-      const desktopSidebar = `<style id="bitcoin-qt-public-pool-layout">
-        .layout-sidebar { transform: translateX(0) !important; left: 2rem !important; display: block !important; visibility: visible !important; }
-        .layout-main-container { margin-left: 300px !important; }
-        .layout-mask { display: none !important; }
-        @media (max-width: 991px) {
-          .layout-sidebar { top: 7rem !important; height: calc(100vh - 9rem) !important; border-radius: 12px !important; }
-          .layout-main-container { margin-left: 300px !important; padding-left: 4rem !important; padding-right: 2rem !important; }
-        }
-      </style>`;
       data = Buffer.from(data.toString('utf8')
-        .replace('</head>', `${importMap}${desktopSidebar}</head>`)
+        .replace('</head>', `${importMap}</head>`)
         .replace(/<script src="(scripts\.[^"]+\.js)" defer><\/script>/, '<script src="$1" type="module"></script>'));
     }
     res.writeHead(200, {'content-type': types[path.extname(file)] || 'application/octet-stream'});

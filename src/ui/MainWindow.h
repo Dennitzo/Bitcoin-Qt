@@ -24,11 +24,13 @@ class MainWindow final : public QMainWindow {
 
 public:
     MainWindow(ConfigManager& config, LogManager& logs, ServiceManager& services, QWidget* parent = nullptr);
+    ~MainWindow() override;
 
 private:
     void buildUi();
     void connectSignals();
     void configureWebEngine();
+    void shutdownWebEngine();
     void applyStyle();
     QString lightStyle() const;
     QString darkStyle() const;

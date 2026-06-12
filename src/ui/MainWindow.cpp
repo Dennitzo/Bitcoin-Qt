@@ -26,6 +26,13 @@ public:
 protected:
     void javaScriptConsoleMessage(JavaScriptConsoleMessageLevel level, const QString& message, int lineNumber, const QString& sourceID) override
     {
+        if (level == InfoMessageLevel) {
+            return;
+        }
+        if (message == "ERROR [object Object]") {
+            return;
+        }
+
         const char* levelName = "info";
         if (level == WarningMessageLevel) {
             levelName = "warning";
@@ -50,6 +57,11 @@ MainWindow::MainWindow(ConfigManager& config, LogManager& logs, ServiceManager& 
     applyStyle();
     configureWebEngine();
     connectSignals();
+}
+
+MainWindow::~MainWindow()
+{
+    shutdownWebEngine();
 }
 
 void MainWindow::buildUi()
@@ -159,6 +171,34 @@ void MainWindow::configureWebEngine()
 
     configureWebPage(m_mempoolPage->webView());
     configureWebPage(m_publicPoolPage->webView());
+}
+
+void MainWindow::shutdownWebEngine()
+{
+    const QList<QWebEngineView*> views = {
+        m_mempoolPage ? m_mempoolPage->webView() : nullptr,
+        m_publicPoolPage ? m_publicPoolPage->webView() : nullptr,
+    };
+
+    for (QWebEngineView* view : views) {
+        if (!view) {
+            continue;
+        }
+        view->stop();
+        QWebEnginePage* page = view->page();
+        view->setPage(nullptr);
+        delete page;
+    }
+
+    m_channels.clear();
+    m_bridges.clear();
+
+    if (m_profile) {
+        m_profile->setUrlRequestInterceptor(nullptr);
+        delete m_profile;
+        m_profile = nullptr;
+        m_interceptor = nullptr;
+    }
 }
 
 void MainWindow::applyStyle()
