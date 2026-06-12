@@ -34,6 +34,26 @@ Required Qt modules:
 - Qt WebEngine
 - Qt WebChannel
 
+Configure and build with a Qt installation available through
+`CMAKE_PREFIX_PATH`:
+
+```bash
+cmake -S . -B build/qt-node-desktop \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_PREFIX_PATH="/path/to/Qt/6.x/<platform>"
+
+cmake --build build/qt-node-desktop
+```
+
+If Qt is already discoverable by CMake, the shorter form works:
+
+```bash
+cmake -S . -B build/qt-node-desktop -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/qt-node-desktop
+```
+
+Example macOS command when CMake was installed as an app bundle:
+
 ```bash
 /Applications/CMake.app/Contents/bin/cmake -S . -B build/qt-node-desktop \
   -DCMAKE_BUILD_TYPE=Debug \
@@ -42,17 +62,17 @@ Required Qt modules:
 /Applications/CMake.app/Contents/bin/cmake --build build/qt-node-desktop
 ```
 
-If `cmake` and Qt are both in your shell environment, the shorter form works:
+Run the built app:
 
 ```bash
-cmake -S . -B build/qt-node-desktop -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/qt-node-desktop
-```
+# macOS
+./build/qt-node-desktop/Bitcoin-Qt.app/Contents/MacOS/Bitcoin-Qt
 
-Run the built macOS app:
+# Linux
+./build/qt-node-desktop/Bitcoin-Qt
 
-```bash
-/Users/melow/Documents/GitHub/Bitcoin-Qt/build/qt-node-desktop/Bitcoin-Qt.app/Contents/MacOS/Bitcoin-Qt
+# Windows
+.\build\qt-node-desktop\Debug\Bitcoin-Qt.exe
 ```
 
 ## Runtime
