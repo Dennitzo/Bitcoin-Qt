@@ -1,4 +1,4 @@
-# Bitcoin Node Desktop
+# Bitcoin-Qt
 
 Native Qt 6 desktop application for managing a local Bitcoin full node stack:
 
