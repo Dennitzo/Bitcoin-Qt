@@ -7,6 +7,8 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QCoreApplication>
+#include <QEventLoop>
 #include <QIcon>
 #include <QMessageBox>
 
@@ -54,11 +56,15 @@ int main(int argc, char* argv[])
     MainWindow window(config, logs, services);
     window.show();
 
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [&services]() {
+        services.stopAll();
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 250);
+    });
+
     if (config.autostart()) {
         services.startConfiguredServices();
     }
 
     const int result = app.exec();
-    services.stopAll();
     return result;
 }

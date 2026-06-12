@@ -14,6 +14,11 @@ RpcClient::RpcClient(ConfigManager& config, QObject* parent)
 {
 }
 
+RpcClient::~RpcClient()
+{
+    abortPendingRequests();
+}
+
 void RpcClient::call(const QString& method, const QJsonArray& params)
 {
     QNetworkRequest request(rpcUrl());
@@ -28,7 +33,12 @@ void RpcClient::call(const QString& method, const QJsonArray& params)
         {"params", params},
     };
     QNetworkReply* reply = m_network.post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    m_replies.insert(reply);
+    QObject::connect(reply, &QObject::destroyed, this, [this, reply]() {
+        m_replies.remove(reply);
+    });
     QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, method]() {
+        m_replies.remove(reply);
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             Q_EMIT failed(method, reply->errorString());
@@ -42,6 +52,22 @@ void RpcClient::call(const QString& method, const QJsonArray& params)
         }
         Q_EMIT result(method, object.value("result"));
     });
+}
+
+void RpcClient::abortPendingRequests()
+{
+    const QList<QNetworkReply*> replies = m_replies.values();
+    m_replies.clear();
+    for (QNetworkReply* reply : replies) {
+        if (!reply) {
+            continue;
+        }
+        reply->disconnect(this);
+        reply->abort();
+        delete reply;
+    }
+    m_network.clearAccessCache();
+    m_network.clearConnectionCache();
 }
 
 void RpcClient::getBlockchainInfo()

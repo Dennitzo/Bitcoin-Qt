@@ -259,7 +259,7 @@ QString ConfigManager::theme() const
 
 QString ConfigManager::language() const
 {
-    return m_settings.value("app/language", "de").toString();
+    return m_settings.value("app/language", "en").toString();
 }
 
 bool ConfigManager::autostart() const

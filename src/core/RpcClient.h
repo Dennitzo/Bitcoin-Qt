@@ -4,7 +4,9 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QObject>
+#include <QSet>
 
 class ConfigManager;
 
@@ -13,8 +15,10 @@ class RpcClient final : public QObject {
 
 public:
     explicit RpcClient(ConfigManager& config, QObject* parent = nullptr);
+    ~RpcClient() override;
 
     void call(const QString& method, const QJsonArray& params = {});
+    void abortPendingRequests();
     void getBlockchainInfo();
     void getNetworkInfo();
     void getBlockCount();
@@ -29,4 +33,5 @@ private:
 
     ConfigManager& m_config;
     QNetworkAccessManager m_network;
+    QSet<QNetworkReply*> m_replies;
 };

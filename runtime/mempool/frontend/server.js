@@ -397,11 +397,17 @@ function blockFromCore(block) {
   };
 }
 
+function sortBlocksOldestFirst(blocks) {
+  return (Array.isArray(blocks) ? blocks : [])
+    .filter(Boolean)
+    .sort((a, b) => Number(a.height || 0) - Number(b.height || 0));
+}
+
 async function loadFallbackBlocks(info) {
   try {
     const backendBlocks = await fetchJson(backendUrl('/api/v1/blocks'));
     if (Array.isArray(backendBlocks) && backendBlocks.length) {
-      return backendBlocks.slice(0, 8);
+      return sortBlocksOldestFirst(backendBlocks).slice(-8);
     }
   } catch {
     // Fall through to Core RPC. During IBD, backend init-data can be empty while
@@ -416,7 +422,7 @@ async function loadFallbackBlocks(info) {
     const block = await rpcCall('getblock', [hash, 1]);
     blocks.push(blockFromCore(block));
   }
-  return blocks;
+  return sortBlocksOldestFirst(blocks);
 }
 
 async function fallbackBlocks(info = null) {
@@ -431,10 +437,10 @@ async function fallbackBlocks(info = null) {
   fallbackBlocksInFlight = (async () => {
     const blockchainInfo = info || await rpcCall('getblockchaininfo');
     const blocks = await loadFallbackBlocks(blockchainInfo);
-    fallbackBlocksCache = blocks;
+    fallbackBlocksCache = sortBlocksOldestFirst(blocks);
     fallbackBlocksCacheAt = Date.now();
     fallbackBlocksInFlight = null;
-    return blocks;
+    return fallbackBlocksCache;
   })().catch((error) => {
     fallbackBlocksInFlight = null;
     throw error;

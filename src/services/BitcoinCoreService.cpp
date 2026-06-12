@@ -30,6 +30,13 @@ void BitcoinCoreService::start()
     m_pollTimer.start();
 }
 
+void BitcoinCoreService::stop()
+{
+    m_pollTimer.stop();
+    m_rpc.abortPendingRequests();
+    ManagedService::stop();
+}
+
 BitcoinNodeStatus BitcoinCoreService::nodeStatus() const
 {
     return m_status;

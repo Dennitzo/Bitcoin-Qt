@@ -13,6 +13,7 @@ public:
     BitcoinCoreService(ConfigManager& config, LogManager& logs, QObject* parent = nullptr);
 
     void start() override;
+    void stop() override;
     BitcoinNodeStatus nodeStatus() const;
 
 Q_SIGNALS:

@@ -1,5 +1,7 @@
 #include "DashboardPage.h"
 
+#include "../core/Localization.h"
+
 #include <QDir>
 #include <QGraphicsDropShadowEffect>
 #include <QGridLayout>
@@ -9,25 +11,6 @@
 #include <QVBoxLayout>
 
 namespace {
-
-QString stateText(ServiceState state)
-{
-    switch (state) {
-    case ServiceState::Stopped:
-        return "Gestoppt";
-    case ServiceState::Starting:
-        return "Startet";
-    case ServiceState::Running:
-        return "Online";
-    case ServiceState::Indexing:
-        return "Indexiert";
-    case ServiceState::Synced:
-        return "Synchron";
-    case ServiceState::Error:
-        return "Fehler";
-    }
-    return "Unbekannt";
-}
 
 QLabel* createMetricLabel(const QString& title, const QString& value, QWidget* parent)
 {
@@ -73,30 +56,31 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     root->setSpacing(20);
 
     auto* title = new QLabel("Dashboard", this);
+    m_title = title;
     title->setObjectName("pageTitle");
     root->addWidget(title);
 
     auto* metricsRow = new QHBoxLayout();
     metricsRow->setSpacing(18);
 
-    m_blockHeight = createMetricLabel("Blockhöhe", "0", this);
-    m_sync = createMetricLabel("Sync", "0.00 %", this);
+    m_blockHeight = createMetricLabel(text("dashboard.blockHeight"), "0", this);
+    m_sync = createMetricLabel(text("dashboard.sync"), "0.00 %", this);
     m_syncProgress = new QProgressBar(this);
     m_syncProgress->setRange(0, 10000);
     m_syncProgress->setTextVisible(false);
     m_syncProgress->setFixedHeight(8);
-    m_storage = createMetricLabel("Speicher", "Berechne", this);
+    m_storage = createMetricLabel(text("dashboard.storage"), text("dashboard.calculating"), this);
     m_storageProgress = new QProgressBar(this);
     m_storageProgress->setRange(0, 10000);
     m_storageProgress->setTextVisible(false);
     m_storageProgress->setFixedHeight(8);
     m_peers = createMetricLabel("Peers", "0", this);
-    m_network = createMetricLabel("Netzwerk", "unknown", this);
-    m_bitcoin = createMetricLabel("Bitcoin Core", "Gestoppt", this);
-    m_electrs = createMetricLabel("Electrs", "Gestoppt", this);
-    m_mempoolDatabase = createMetricLabel("Mempool DB", "Gestoppt", this);
-    m_mempool = createMetricLabel("Mempool", "Offline", this);
-    m_publicPool = createMetricLabel("Public Pool", "Offline", this);
+    m_network = createMetricLabel(text("dashboard.network"), "unknown", this);
+    m_bitcoin = createMetricLabel("Bitcoin Core", text("state.stopped"), this);
+    m_electrs = createMetricLabel("Electrs", text("state.stopped"), this);
+    m_mempoolDatabase = createMetricLabel("Mempool DB", text("state.stopped"), this);
+    m_mempool = createMetricLabel("Mempool", text("dashboard.offline"), this);
+    m_publicPool = createMetricLabel("Public Pool", text("dashboard.offline"), this);
     auto* syncWidget = new QWidget(this);
     auto* syncLayout = new QVBoxLayout(syncWidget);
     syncLayout->setContentsMargins(0, 0, 0, 0);
@@ -135,8 +119,8 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
         layout->setSpacing(12);
         layout->addWidget(services.at(i).second);
         auto* controls = new QHBoxLayout();
-        auto* start = new QPushButton("Start", wrapper);
-        auto* stop = new QPushButton("Stop", wrapper);
+        auto* start = new QPushButton(text("app.start"), wrapper);
+        auto* stop = new QPushButton(text("app.stop"), wrapper);
         start->setObjectName("secondaryButton");
         stop->setObjectName("secondaryButton");
         controls->addWidget(start);
@@ -159,15 +143,17 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     m_storageTimer.setInterval(30000);
     QObject::connect(&m_storageTimer, &QTimer::timeout, this, &DashboardPage::updateStorage);
     m_storageTimer.start();
+    QObject::connect(&m_config, &ConfigManager::changed, this, &DashboardPage::retranslate);
 }
 
 void DashboardPage::updateBitcoinStatus(const BitcoinNodeStatus& status)
 {
-    m_blockHeight->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>Blockhöhe</span><br><b style='font-size:26px'>%1</b>").arg(status.blockHeight));
-    m_sync->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>Sync</span><br><b style='font-size:26px'>%1 %</b>").arg(status.verificationProgress * 100.0, 0, 'f', 2));
+    m_lastBitcoinStatus = status;
+    m_blockHeight->setText(metricHtml("dashboard.blockHeight", QString::number(status.blockHeight)));
+    m_sync->setText(metricHtml("dashboard.sync", QString("%1 %").arg(status.verificationProgress * 100.0, 0, 'f', 2)));
     m_syncProgress->setValue(static_cast<int>(status.verificationProgress * 10000.0));
-    m_peers->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>Peers</span><br><b style='font-size:26px'>%1</b>").arg(status.peers));
-    m_network->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>Netzwerk</span><br><b style='font-size:26px'>%1</b>").arg(status.network));
+    m_peers->setText(metricHtml("dashboard.peers", QString::number(status.peers)));
+    m_network->setText(metricHtml("dashboard.network", status.network));
 }
 
 void DashboardPage::updateServiceStatus(const ServiceStatus& status)
@@ -187,14 +173,71 @@ void DashboardPage::updateServiceStatus(const ServiceStatus& status)
     if (!target) {
         return;
     }
+    m_serviceStatuses.insert(status.id, status);
     target->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>%1</span><br><b style='font-size:24px'>%2</b><br><span style='color:#8a93a3'>%3</span>")
-        .arg(status.label, stateText(status.state), status.detail));
+        .arg(status.label, stateText(status.state), appServiceDetail(language(), status.detail)));
     if (auto* start = m_startButtons.value(status.id, nullptr)) {
         start->setEnabled(status.state == ServiceState::Stopped || status.state == ServiceState::Error);
     }
     if (auto* stop = m_stopButtons.value(status.id, nullptr)) {
         stop->setEnabled(status.state != ServiceState::Stopped);
     }
+}
+
+QString DashboardPage::language() const
+{
+    return m_config.language();
+}
+
+QString DashboardPage::text(const QString& key) const
+{
+    return appText(language(), key);
+}
+
+QString DashboardPage::metricHtml(const QString& titleKey, const QString& value, int valueSize) const
+{
+    return QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>%1</span><br><b style='font-size:%2px'>%3</b>")
+        .arg(text(titleKey))
+        .arg(valueSize)
+        .arg(value);
+}
+
+QString DashboardPage::stateText(ServiceState state) const
+{
+    switch (state) {
+    case ServiceState::Stopped:
+        return text("state.stopped");
+    case ServiceState::Starting:
+        return text("state.starting");
+    case ServiceState::Running:
+        return text("state.online");
+    case ServiceState::Indexing:
+        return text("state.indexing");
+    case ServiceState::Synced:
+        return text("state.synced");
+    case ServiceState::Error:
+        return text("state.error");
+    }
+    return text("state.unknown");
+}
+
+void DashboardPage::retranslate()
+{
+    if (m_title) {
+        m_title->setText(text("dashboard.title"));
+    }
+    for (auto* button : m_startButtons) {
+        button->setText(text("app.start"));
+    }
+    for (auto* button : m_stopButtons) {
+        button->setText(text("app.stop"));
+    }
+    updateBitcoinStatus(m_lastBitcoinStatus);
+    const QList<ServiceStatus> statuses = m_serviceStatuses.values();
+    for (const ServiceStatus& status : statuses) {
+        updateServiceStatus(status);
+    }
+    updateStorage();
 }
 
 void DashboardPage::updateStorage()
@@ -204,13 +247,12 @@ void DashboardPage::updateStorage()
     const qint64 total = storage.bytesTotal();
     const qint64 available = storage.bytesAvailable();
     if (total <= 0) {
-        m_storage->setText("<span style='color:#8a93a3;font-size:12px;font-weight:700'>Speicher</span><br><b style='font-size:26px'>Nicht verfügbar</b>");
+        m_storage->setText(metricHtml("dashboard.storage", text("dashboard.unavailable")));
         m_storageProgress->setValue(0);
         return;
     }
     const qint64 used = total - available;
     const double percent = static_cast<double>(used) / static_cast<double>(total);
-    m_storage->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>Speicher</span><br><b style='font-size:26px'>%1 / %2</b>")
-        .arg(formatBytes(used), formatBytes(total)));
+    m_storage->setText(metricHtml("dashboard.storage", QString("%1 / %2").arg(formatBytes(used), formatBytes(total))));
     m_storageProgress->setValue(static_cast<int>(percent * 10000.0));
 }

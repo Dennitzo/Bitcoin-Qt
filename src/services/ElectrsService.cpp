@@ -6,25 +6,6 @@
 #include <QJsonObject>
 
 namespace {
-QString stateName(ServiceState state)
-{
-    switch (state) {
-    case ServiceState::Stopped:
-        return "Gestoppt";
-    case ServiceState::Starting:
-        return "Startet";
-    case ServiceState::Running:
-        return "Läuft";
-    case ServiceState::Indexing:
-        return "Indexiert";
-    case ServiceState::Synced:
-        return "Synchronisiert";
-    case ServiceState::Error:
-        return "Fehler";
-    }
-    return "Unbekannt";
-}
-
 bool hasIndexedHeader(const QByteArray& response)
 {
     const QList<QByteArray> lines = response.split('\n');
@@ -52,14 +33,6 @@ ElectrsService::ElectrsService(ConfigManager& config, LogManager& logs, QObject*
 {
     m_healthTimer.setInterval(3000);
     QObject::connect(&m_healthTimer, &QTimer::timeout, this, &ElectrsService::checkPort);
-    QObject::connect(this, &ManagedService::statusChanged, this, [this](const ServiceStatus& status) {
-        const QString message = QString("[%1] %2").arg(stateName(status.state), status.detail);
-        if (message == m_lastLoggedStatus) {
-            return;
-        }
-        m_lastLoggedStatus = message;
-        this->logs().append(id(), message);
-    });
 
     m_readinessTimer.setInterval(5000);
     QObject::connect(&m_readinessTimer, &QTimer::timeout, this, &ElectrsService::checkBitcoinRpc);
@@ -99,6 +72,7 @@ void ElectrsService::stop()
     m_startRequested = false;
     m_readinessTimer.stop();
     m_healthTimer.stop();
+    m_rpc.abortPendingRequests();
     ManagedService::stop();
 }
 

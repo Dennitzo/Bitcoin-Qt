@@ -25,9 +25,17 @@ public Q_SLOTS:
     void updateServiceStatus(const ServiceStatus& status);
 
 private:
+    QString language() const;
+    QString text(const QString& key) const;
+    QString metricHtml(const QString& titleKey, const QString& value, int valueSize = 26) const;
+    QString stateText(ServiceState state) const;
+    void retranslate();
     void updateStorage();
 
     ConfigManager& m_config;
+    BitcoinNodeStatus m_lastBitcoinStatus;
+    QMap<QString, ServiceStatus> m_serviceStatuses;
+    QLabel* m_title = nullptr;
     QLabel* m_blockHeight = nullptr;
     QLabel* m_sync = nullptr;
     QLabel* m_storage = nullptr;

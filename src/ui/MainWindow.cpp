@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include "../core/Localization.h"
+
 #include <QHBoxLayout>
 #include <QDebug>
 #include <QLabel>
@@ -95,9 +97,9 @@ void MainWindow::buildUi()
     brandLayout->addWidget(brandIcon);
     brandLayout->addWidget(brandText, 1);
     m_sidebar = new QListWidget(sidebarFrame);
-    m_sidebar->addItems({"Dashboard", "Bitcoind", "Electrs", "Mempool", "Public Pool"});
+    m_sidebar->addItems({"", "", "", "", ""});
     m_sidebar->setCurrentRow(0);
-    m_settingsButton = new QPushButton("Einstellungen", sidebarFrame);
+    m_settingsButton = new QPushButton(sidebarFrame);
     m_settingsButton->setObjectName("sidebarNavButton");
     m_settingsButton->setCheckable(true);
     sidebarLayout->addWidget(brand);
@@ -106,10 +108,10 @@ void MainWindow::buildUi()
 
     m_pages = new QStackedWidget(central);
     m_dashboard = new DashboardPage(m_config, m_pages);
-    m_bitcoindLog = new LogsPage("Bitcoind Log", {"bitcoind"}, m_pages);
-    m_electrsLog = new LogsPage("Electrs Log", {"electrs"}, m_pages);
-    m_mempoolPage = new NodePage(m_config, "mempool", "Mempool wird geladen, sobald Backend und Frontend bereit sind.", m_pages);
-    m_publicPoolPage = new NodePage(m_config, "publicPool", "Public Pool wird geladen, sobald Stratum/API und UI bereit sind.", m_pages);
+    m_bitcoindLog = new LogsPage(appText(m_config.language(), "logs.bitcoind"), {"bitcoind"}, m_pages);
+    m_electrsLog = new LogsPage(appText(m_config.language(), "logs.electrs"), {"electrs"}, m_pages);
+    m_mempoolPage = new NodePage(m_config, "mempool", appText(m_config.language(), "web.mempoolWaiting"), m_pages);
+    m_publicPoolPage = new NodePage(m_config, "publicPool", appText(m_config.language(), "web.publicPoolWaiting"), m_pages);
     m_settings = new SettingsPage(m_config, m_pages);
     m_pages->addWidget(m_dashboard);
     m_pages->addWidget(m_bitcoindLog);
@@ -134,6 +136,7 @@ void MainWindow::buildUi()
         m_pages->setCurrentWidget(m_settings);
         m_settingsButton->setChecked(true);
     });
+    retranslate();
 }
 
 void MainWindow::connectSignals()
@@ -149,7 +152,10 @@ void MainWindow::connectSignals()
     QObject::connect(&m_services, &ServiceManager::errorRaised, this, [this](const QString& title, const QString& message) {
         statusBar()->showMessage(QString("%1: %2").arg(title, message), 8000);
     });
-    QObject::connect(&m_config, &ConfigManager::changed, this, &MainWindow::applyStyle);
+    QObject::connect(&m_config, &ConfigManager::changed, this, [this]() {
+        applyStyle();
+        retranslate();
+    });
 
     m_dashboard->updateBitcoinStatus(m_services.bitcoinStatus());
     for (const ServiceStatus& status : m_services.statuses()) {
@@ -205,6 +211,19 @@ void MainWindow::applyStyle()
 {
     const QString theme = m_config.theme().toLower();
     setStyleSheet(theme == "dark" ? darkStyle() : lightStyle());
+}
+
+void MainWindow::retranslate()
+{
+    const QString lang = m_config.language();
+    setWindowTitle("Bitcoin-Qt");
+    const QStringList items = {"Dashboard", "Bitcoind", "Electrs", "Mempool", "Public Pool"};
+    for (int i = 0; i < items.size() && i < m_sidebar->count(); ++i) {
+        m_sidebar->item(i)->setText(items.at(i));
+    }
+    if (m_settingsButton) {
+        m_settingsButton->setText(appText(lang, "app.settings"));
+    }
 }
 
 QString MainWindow::lightStyle() const
@@ -297,6 +316,24 @@ QString MainWindow::lightStyle() const
         QLabel#settingsFieldLabel {
             color: #687386;
             font-weight: 600;
+        }
+        QFrame#settingsSavedOverlay {
+            background: #ffffff;
+            border: 1px solid #dde4ef;
+            border-radius: 18px;
+        }
+        QFrame#settingsSavedOverlay QLabel {
+            background: transparent;
+        }
+        QLabel#settingsSavedOverlayTitle {
+            color: #1d1d1f;
+            font-size: 17px;
+            font-weight: 800;
+        }
+        QLabel#settingsSavedOverlayText {
+            color: #687386;
+            font-size: 14px;
+            font-weight: 500;
         }
         QPushButton {
             min-height: 36px;
@@ -484,6 +521,24 @@ QString MainWindow::darkStyle() const
         QLabel#settingsFieldLabel {
             color: #aab2c0;
             font-weight: 600;
+        }
+        QFrame#settingsSavedOverlay {
+            background: #191e29;
+            border: 1px solid #303746;
+            border-radius: 18px;
+        }
+        QFrame#settingsSavedOverlay QLabel {
+            background: transparent;
+        }
+        QLabel#settingsSavedOverlayTitle {
+            color: #f5f7fb;
+            font-size: 17px;
+            font-weight: 800;
+        }
+        QLabel#settingsSavedOverlayText {
+            color: #aab2c0;
+            font-size: 14px;
+            font-weight: 500;
         }
         QPushButton {
             min-height: 36px;

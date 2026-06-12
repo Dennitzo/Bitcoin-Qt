@@ -32,6 +32,7 @@ private:
     void configureWebEngine();
     void shutdownWebEngine();
     void applyStyle();
+    void retranslate();
     QString lightStyle() const;
     QString darkStyle() const;
     void configureWebPage(QWebEngineView* view);

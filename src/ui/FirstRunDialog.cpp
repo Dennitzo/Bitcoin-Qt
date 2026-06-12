@@ -1,5 +1,7 @@
 #include "FirstRunDialog.h"
 
+#include "../core/Localization.h"
+
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
@@ -14,28 +16,26 @@ FirstRunDialog::FirstRunDialog(ConfigManager& config, QWidget* parent)
     : QDialog(parent),
       m_config(config)
 {
-    setWindowTitle("Speicherort einrichten");
+    const QString lang = m_config.language();
+    setWindowTitle(appText(lang, "firstRun.windowTitle"));
     setModal(true);
     resize(620, 220);
 
     auto* root = new QVBoxLayout(this);
-    auto* title = new QLabel("Bitcoin Full Node Speicherort", this);
+    auto* title = new QLabel(appText(lang, "firstRun.title"), this);
     title->setStyleSheet("font-size: 22px; font-weight: 700;");
-    auto* description = new QLabel(
-        "Wähle eine interne oder externe Festplatte. Bitcoin Core, electrs und Mempool speichern "
-        "ihre Daten vollständig in diesem Ordner.",
-        this);
+    auto* description = new QLabel(appText(lang, "firstRun.description"), this);
     description->setWordWrap(true);
 
     auto* row = new QHBoxLayout();
     m_path = new QLineEdit(this);
-    m_path->setPlaceholderText("/Volumes/BitcoinNode oder /media/bitcoin-node");
-    auto* browse = new QPushButton("Auswählen", this);
+    m_path->setPlaceholderText(appText(lang, "firstRun.placeholder"));
+    auto* browse = new QPushButton(appText(lang, "app.select"), this);
     row->addWidget(m_path, 1);
     row->addWidget(browse);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-    buttons->button(QDialogButtonBox::Ok)->setText("Speichern");
+    buttons->button(QDialogButtonBox::Ok)->setText(appText(lang, "app.save"));
 
     root->addWidget(title);
     root->addWidget(description);
@@ -51,7 +51,7 @@ FirstRunDialog::FirstRunDialog(ConfigManager& config, QWidget* parent)
 
 void FirstRunDialog::chooseDirectory()
 {
-    const QString dir = QFileDialog::getExistingDirectory(this, "Datenträger oder Ordner auswählen");
+    const QString dir = QFileDialog::getExistingDirectory(this, appText(m_config.language(), "firstRun.chooseDirectory"));
     if (!dir.isEmpty()) {
         m_path->setText(dir);
     }
@@ -61,12 +61,12 @@ void FirstRunDialog::accept()
 {
     const QString path = m_path->text().trimmed();
     if (path.isEmpty()) {
-        QMessageBox::warning(this, "Speicherort fehlt", "Bitte wähle zuerst eine Festplatte oder einen Ordner aus.");
+        QMessageBox::warning(this, appText(m_config.language(), "firstRun.missingTitle"), appText(m_config.language(), "firstRun.missingText"));
         return;
     }
     QDir dir(path);
     if (!dir.exists() && !dir.mkpath(".")) {
-        QMessageBox::critical(this, "Speicherort nicht nutzbar", "Der Ordner konnte nicht erstellt werden.");
+        QMessageBox::critical(this, appText(m_config.language(), "firstRun.unusableTitle"), appText(m_config.language(), "firstRun.unusableText"));
         return;
     }
     m_config.setBaseDataDir(dir.absolutePath());

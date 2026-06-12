@@ -1,5 +1,7 @@
 #include "ServiceManager.h"
 
+#include "Localization.h"
+
 ServiceManager::ServiceManager(ConfigManager& config, LogManager& logs, QObject* parent)
     : QObject(parent),
       m_config(config),
@@ -130,6 +132,7 @@ void ServiceManager::wireService(ManagedService& service)
 {
     QObject::connect(&service, &ManagedService::statusChanged, this, &ServiceManager::serviceStatusChanged);
     QObject::connect(&service, &ManagedService::crashed, this, [this](const QString& id, const QString& message) {
-        Q_EMIT errorRaised(QString("%1 abgestürzt").arg(id), message);
+        const bool english = m_config.language().toLower().startsWith("en");
+        Q_EMIT errorRaised(english ? QString("%1 crashed").arg(id) : QString("%1 abgestürzt").arg(id), appServiceDetail(m_config.language(), message));
     });
 }
