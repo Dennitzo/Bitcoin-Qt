@@ -6,9 +6,23 @@ Native Qt 6 desktop application for managing a local Bitcoin full node stack:
 - electrs
 - Mempool backend
 - Mempool frontend embedded with Qt WebEngine / Chromium
+- Public Pool backend
+- Public Pool frontend embedded with Qt WebEngine / Chromium
 
 The app asks for a storage location on first start. Choose an external drive if
 the full node data should live outside the system disk.
+
+## Features
+
+- Native Qt Widgets desktop shell with embedded Chromium WebViews
+- Per-service start/stop controls and persisted service state
+- First-run disk selection for running the full node from an external drive
+- Dashboard with Bitcoin Core sync progress, peer count, Mempool state, Public
+  Pool state, and storage usage
+- Dedicated sidebar pages for Dashboard, Bitcoind logs, electrs logs, Mempool,
+  Public Pool, and Settings
+- Local-only service orchestration through `QProcess`
+- Qt WebChannel bridge for future native/web integration
 
 ## Build
 
@@ -19,7 +33,6 @@ Required Qt modules:
 - Qt Concurrent
 - Qt WebEngine
 - Qt WebChannel
-- Qt Positioning
 
 ```bash
 /Applications/CMake.app/Contents/bin/cmake -S . -B build/qt-node-desktop \
@@ -36,10 +49,16 @@ cmake -S . -B build/qt-node-desktop -DCMAKE_BUILD_TYPE=Debug
 cmake --build build/qt-node-desktop
 ```
 
+Run the built macOS app:
+
+```bash
+/Users/melow/Documents/GitHub/Bitcoin-Qt/build/qt-node-desktop/Bitcoin-Qt.app/Contents/MacOS/Bitcoin-Qt
+```
+
 ## Runtime
 
 The app owns its service runtime. It resolves binaries from `runtime/` during
-development and from `BitcoinNodeDesktop.app/Contents/Resources/runtime` when
+development and from `Bitcoin-Qt.app/Contents/Resources/runtime` when
 packaged.
 
 Expected runtime layout:
@@ -49,8 +68,11 @@ runtime/
   bitcoin/bin/bitcoind
   electrs/bin/electrs
   node/bin/node
+  node/bin/npm
   mempool/backend/
   mempool/frontend/
+  public-pool/backend/
+  public-pool/frontend/
 ```
 
 Build all runtime components:
@@ -66,6 +88,7 @@ Build individual components:
 ./scripts/build-electrs.sh
 ./scripts/build-node-runtime.sh
 ./scripts/build-mempool.sh
+./scripts/build-public-pool.sh
 ```
 
 Version pins can be overridden:
@@ -74,6 +97,45 @@ Version pins can be overridden:
 BITCOIN_CORE_REF=v29.0 ELECTRS_REF=master MEMPOOL_REF=master NODE_VERSION=v24.13.0 \
   ./scripts/build-runtime.sh
 ```
+
+`scripts/build-public-pool.sh` stages the current upstream Public Pool projects
+from:
+
+- `https://github.com/benjamin-wilson/public-pool`
+- `https://github.com/benjamin-wilson/public-pool-ui`
+
+The script builds the backend and Electron-style frontend, then writes a small
+local frontend server so the UI can be loaded inside the Qt WebView.
+
+The selected first-run storage directory is separate from `runtime/` and holds
+mutable node data and logs:
+
+```text
+<selected-disk>/
+  bitcoin/
+  electrs/
+  mempool/
+  public-pool/
+  logs/
+```
+
+## Service Startup
+
+Services are controlled individually from the dashboard. Starting `bitcoind`
+does not implicitly start electrs, Mempool, or Public Pool. The app persists the
+last selected start/stop state per service and restores it on the next launch.
+
+The expected dependency order is:
+
+1. Start Bitcoin Core.
+2. Wait until Bitcoin Core RPC is available.
+3. Start electrs.
+4. Start Mempool after electrs is reachable.
+5. Start Public Pool after Bitcoin Core RPC is reachable.
+
+Mempool and Public Pool are loaded locally in embedded Qt WebEngine views. The
+app is designed to keep these pages inside Bitcoin-Qt instead of opening an
+external browser.
 
 ## macOS 12 Notes
 

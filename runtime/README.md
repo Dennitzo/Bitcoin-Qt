@@ -17,7 +17,11 @@ runtime/
   node/
     bin/
       node
+      npm
   mempool/
+    backend/
+    frontend/
+  public-pool/
     backend/
     frontend/
 ```
@@ -30,6 +34,7 @@ large mutable node data on an internal or external disk:
   bitcoin/
   electrs/
   mempool/
+  public-pool/
   logs/
 ```
 
@@ -46,7 +51,8 @@ Individual services can be built with:
 ./scripts/build-electrs.sh
 ./scripts/build-node-runtime.sh
 ./scripts/build-mempool.sh
+./scripts/build-public-pool.sh
 ```
 
 For packaged `.app` bundles, copy this `runtime/` directory into
-`BitcoinNodeDesktop.app/Contents/Resources/runtime`.
+`Bitcoin-Qt.app/Contents/Resources/runtime`.
