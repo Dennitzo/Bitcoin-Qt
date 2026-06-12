@@ -10,11 +10,16 @@ BitcoinCoreService::BitcoinCoreService(ConfigManager& config, LogManager& logs, 
     QObject::connect(&m_pollTimer, &QTimer::timeout, this, &BitcoinCoreService::pollRpc);
     m_pollTimer.setInterval(2500);
     QObject::connect(&m_rpc, &RpcClient::result, this, &BitcoinCoreService::applyRpcResult);
-    QObject::connect(&m_rpc, &RpcClient::failed, this, [this](const QString&, const QString& error) {
+    QObject::connect(&m_rpc, &RpcClient::failed, this, [this](const QString&, const QString&) {
+        ++m_rpcFailureCount;
+        if (m_rpcFailureCount < 3) {
+            return;
+        }
+
         m_status.rpcAvailable = false;
         Q_EMIT nodeStatusChanged(m_status);
         if (state() == ServiceState::Running) {
-            setState(ServiceState::Starting, QString("RPC nicht erreichbar: %1").arg(error));
+            setState(ServiceState::Starting, "RPC nicht verfügbar");
         }
     });
 }
@@ -38,6 +43,8 @@ QStringList BitcoinCoreService::arguments() const
         "-txindex=1",
         "-rpcbind=127.0.0.1",
         "-rpcallowip=127.0.0.1",
+        "-rpcthreads=8",
+        "-rpcworkqueue=128",
         QString("-rpcuser=%1").arg(config().rpcUser()),
         QString("-rpcpassword=%1").arg(config().rpcPassword()),
         QString("-rpcport=%1").arg(config().bitcoinRpcPort()),
@@ -71,6 +78,7 @@ void BitcoinCoreService::pollRpc()
 void BitcoinCoreService::applyRpcResult(const QString& method, const QJsonValue& value)
 {
     const bool wasUnavailable = !m_status.rpcAvailable;
+    m_rpcFailureCount = 0;
     m_status.rpcAvailable = true;
 
     if (method == "getblockchaininfo") {

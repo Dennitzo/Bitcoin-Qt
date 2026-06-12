@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(BitcoinNodeDesktop
+project(BitcoinQt
     VERSION 0.1.0
     DESCRIPTION "Native Bitcoin full node desktop application"
     LANGUAGES CXX
@@ -25,6 +25,7 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS
 qt_standard_project_setup()
 
 qt_add_executable(BitcoinNodeDesktop
+    resources/resources.qrc
     src/main.cpp
     src/core/AppTypes.h
     src/core/ConfigManager.cpp
@@ -45,6 +46,8 @@ qt_add_executable(BitcoinNodeDesktop
     src/services/ElectrsService.h
     src/services/MempoolService.cpp
     src/services/MempoolService.h
+    src/services/PublicPoolService.cpp
+    src/services/PublicPoolService.h
     src/ui/DashboardPage.cpp
     src/ui/DashboardPage.h
     src/ui/FirstRunDialog.cpp
@@ -77,10 +80,16 @@ target_compile_definitions(BitcoinNodeDesktop PRIVATE
 )
 
 if(APPLE)
+    set_source_files_properties(resources/Bitcoin.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
+    target_sources(BitcoinNodeDesktop PRIVATE resources/Bitcoin.icns)
     set_target_properties(BitcoinNodeDesktop PROPERTIES
         MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_BUNDLE_NAME "Bitcoin Node Desktop"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "org.bitcoin.node.desktop"
+        OUTPUT_NAME "Bitcoin-Qt"
+        MACOSX_BUNDLE_BUNDLE_NAME "Bitcoin-Qt"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "org.bitcoin.qt"
+        MACOSX_BUNDLE_ICON_FILE "Bitcoin.icns"
     )
 
     add_custom_command(TARGET BitcoinNodeDesktop POST_BUILD

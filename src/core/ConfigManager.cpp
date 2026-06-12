@@ -25,8 +25,18 @@ QString executableSetting(const QSettings& settings, const QString& key, const Q
 
 ConfigManager::ConfigManager(QObject* parent)
     : QObject(parent),
-      m_settings("BitcoinNodeDesktop", "BitcoinNodeDesktop")
+      m_settings("Bitcoin-Qt", "Bitcoin-Qt")
 {
+    if (m_settings.value("storage/baseDataDir").toString().isEmpty()) {
+        QSettings legacy("BitcoinNodeDesktop", "BitcoinNodeDesktop");
+        const QString legacyBaseDir = legacy.value("storage/baseDataDir").toString();
+        if (!legacyBaseDir.isEmpty()) {
+            const QStringList keys = legacy.allKeys();
+            for (const QString& key : keys) {
+                m_settings.setValue(key, legacy.value(key));
+            }
+        }
+    }
 }
 
 bool ConfigManager::isFirstRun() const
@@ -46,9 +56,39 @@ void ConfigManager::setBaseDataDir(const QString& path)
     dir.mkpath("bitcoin");
     dir.mkpath("electrs");
     dir.mkpath("mempool");
+    dir.mkpath("public-pool");
     dir.mkpath("logs");
 
     m_settings.setValue("storage/baseDataDir", dir.absolutePath());
+    Q_EMIT changed();
+}
+
+void ConfigManager::setStringValue(const QString& key, const QString& value)
+{
+    m_settings.setValue(key, value);
+    Q_EMIT changed();
+}
+
+void ConfigManager::setUIntValue(const QString& key, quint16 value)
+{
+    m_settings.setValue(key, value);
+    Q_EMIT changed();
+}
+
+void ConfigManager::setBoolValue(const QString& key, bool value)
+{
+    m_settings.setValue(key, value);
+    Q_EMIT changed();
+}
+
+bool ConfigManager::serviceEnabled(const QString& id) const
+{
+    return m_settings.value(QString("services/%1/enabled").arg(id), id == "bitcoind").toBool();
+}
+
+void ConfigManager::setServiceEnabled(const QString& id, bool enabled)
+{
+    m_settings.setValue(QString("services/%1/enabled").arg(id), enabled);
     Q_EMIT changed();
 }
 
@@ -136,6 +176,26 @@ quint16 ConfigManager::mempoolFrontendPort() const
 QString ConfigManager::mempoolHost() const
 {
     return m_settings.value("mempool/host", "127.0.0.1").toString();
+}
+
+quint16 ConfigManager::publicPoolApiPort() const
+{
+    return static_cast<quint16>(m_settings.value("publicPool/apiPort", 3334).toUInt());
+}
+
+quint16 ConfigManager::publicPoolStratumPort() const
+{
+    return static_cast<quint16>(m_settings.value("publicPool/stratumPort", 3333).toUInt());
+}
+
+quint16 ConfigManager::publicPoolFrontendPort() const
+{
+    return static_cast<quint16>(m_settings.value("publicPool/frontendPort", 3335).toUInt());
+}
+
+QString ConfigManager::publicPoolPayoutAddress() const
+{
+    return m_settings.value("publicPool/payoutAddress").toString();
 }
 
 QString ConfigManager::theme() const

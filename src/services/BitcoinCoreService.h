@@ -27,4 +27,5 @@ private:
     RpcClient m_rpc;
     QTimer m_pollTimer;
     BitcoinNodeStatus m_status;
+    int m_rpcFailureCount = 0;
 };

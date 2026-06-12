@@ -13,9 +13,11 @@
 
 #include <QListWidget>
 #include <QMainWindow>
+#include <QPushButton>
 #include <QStackedWidget>
 #include <QWebChannel>
 #include <QWebEngineProfile>
+#include <QWebEngineView>
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -27,20 +29,27 @@ private:
     void buildUi();
     void connectSignals();
     void configureWebEngine();
+    void applyStyle();
+    QString lightStyle() const;
+    QString darkStyle() const;
+    void configureWebPage(QWebEngineView* view);
 
     ConfigManager& m_config;
     LogManager& m_logs;
     ServiceManager& m_services;
 
     QListWidget* m_sidebar = nullptr;
+    QPushButton* m_settingsButton = nullptr;
     QStackedWidget* m_pages = nullptr;
     DashboardPage* m_dashboard = nullptr;
-    NodePage* m_node = nullptr;
-    LogsPage* m_logPage = nullptr;
+    LogsPage* m_bitcoindLog = nullptr;
+    LogsPage* m_electrsLog = nullptr;
+    NodePage* m_mempoolPage = nullptr;
+    NodePage* m_publicPoolPage = nullptr;
     SettingsPage* m_settings = nullptr;
 
     QWebEngineProfile* m_profile = nullptr;
     LocalUrlInterceptor* m_interceptor = nullptr;
-    QWebChannel* m_channel = nullptr;
-    WebBridge* m_bridge = nullptr;
+    QList<QWebChannel*> m_channels;
+    QList<WebBridge*> m_bridges;
 };

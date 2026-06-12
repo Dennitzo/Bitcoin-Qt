@@ -15,6 +15,11 @@ public:
     bool isFirstRun() const;
     QString baseDataDir() const;
     void setBaseDataDir(const QString& path);
+    void setStringValue(const QString& key, const QString& value);
+    void setUIntValue(const QString& key, quint16 value);
+    void setBoolValue(const QString& key, bool value);
+    bool serviceEnabled(const QString& id) const;
+    void setServiceEnabled(const QString& id, bool enabled);
 
     QString bitcoinDataDir() const;
     QString electrsDataDir() const;
@@ -33,6 +38,10 @@ public:
     quint16 mempoolBackendPort() const;
     quint16 mempoolFrontendPort() const;
     QString mempoolHost() const;
+    quint16 publicPoolApiPort() const;
+    quint16 publicPoolStratumPort() const;
+    quint16 publicPoolFrontendPort() const;
+    QString publicPoolPayoutAddress() const;
 
     QString theme() const;
     QString language() const;

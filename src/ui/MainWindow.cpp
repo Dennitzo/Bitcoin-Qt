@@ -2,6 +2,7 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QListWidgetItem>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QStatusBar>
@@ -11,6 +12,27 @@
 #include <QWebEngineScript>
 #include <QWebEngineScriptCollection>
 
+namespace {
+
+class EmbeddedWebPage final : public QWebEnginePage {
+public:
+    explicit EmbeddedWebPage(QWebEngineProfile* profile, QObject* parent = nullptr)
+        : QWebEnginePage(profile, parent)
+    {
+    }
+
+protected:
+    void javaScriptConsoleMessage(JavaScriptConsoleMessageLevel level, const QString& message, int lineNumber, const QString& sourceID) override
+    {
+        Q_UNUSED(level)
+        Q_UNUSED(message)
+        Q_UNUSED(lineNumber)
+        Q_UNUSED(sourceID)
+    }
+};
+
+}
+
 MainWindow::MainWindow(ConfigManager& config, LogManager& logs, ServiceManager& services, QWidget* parent)
     : QMainWindow(parent),
       m_config(config),
@@ -18,14 +40,16 @@ MainWindow::MainWindow(ConfigManager& config, LogManager& logs, ServiceManager& 
       m_services(services)
 {
     buildUi();
+    applyStyle();
     configureWebEngine();
     connectSignals();
 }
 
 void MainWindow::buildUi()
 {
-    setWindowTitle("Bitcoin Node Desktop");
+    setWindowTitle("Bitcoin-Qt");
     resize(1320, 860);
+    setMinimumSize(1040, 700);
 
     auto* central = new QWidget(this);
     auto* root = new QHBoxLayout(central);
@@ -34,35 +58,33 @@ void MainWindow::buildUi()
 
     auto* sidebarFrame = new QWidget(central);
     sidebarFrame->setFixedWidth(232);
-    sidebarFrame->setStyleSheet(
-        "QWidget{background:#161821;color:#f5f7fa;}"
-        "QLabel#brand{font-size:20px;font-weight:700;padding:24px 20px;}"
-        "QListWidget{border:none;outline:none;background:#161821;padding:8px;}"
-        "QListWidget::item{height:44px;border-radius:6px;padding-left:14px;color:#d7dce2;}"
-        "QListWidget::item:selected{background:#2f80ed;color:white;}"
-        "QListWidget::item:hover{background:#252936;}"
-        "QPushButton{margin:14px 16px 18px 16px;height:40px;border:none;border-radius:6px;background:#20bf6b;color:white;font-weight:700;}"
-    );
+    sidebarFrame->setObjectName("sidebar");
     auto* sidebarLayout = new QVBoxLayout(sidebarFrame);
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
-    auto* brand = new QLabel("Bitcoin Node", sidebarFrame);
+    auto* brand = new QLabel("Bitcoin-Qt", sidebarFrame);
     brand->setObjectName("brand");
     m_sidebar = new QListWidget(sidebarFrame);
-    m_sidebar->addItems({"Dashboard", "Node", "Logs", "Einstellungen"});
+    m_sidebar->addItems({"Dashboard", "Bitcoind", "Electrs", "Mempool", "Public Pool"});
     m_sidebar->setCurrentRow(0);
-    auto* startButton = new QPushButton("Node starten", sidebarFrame);
+    m_settingsButton = new QPushButton("Einstellungen", sidebarFrame);
+    m_settingsButton->setObjectName("sidebarNavButton");
+    m_settingsButton->setCheckable(true);
     sidebarLayout->addWidget(brand);
     sidebarLayout->addWidget(m_sidebar, 1);
-    sidebarLayout->addWidget(startButton);
+    sidebarLayout->addWidget(m_settingsButton);
 
     m_pages = new QStackedWidget(central);
-    m_dashboard = new DashboardPage(m_pages);
-    m_node = new NodePage(m_pages);
-    m_logPage = new LogsPage(m_pages);
+    m_dashboard = new DashboardPage(m_config, m_pages);
+    m_bitcoindLog = new LogsPage("Bitcoind Log", {"bitcoind"}, m_pages);
+    m_electrsLog = new LogsPage("Electrs Log", {"electrs"}, m_pages);
+    m_mempoolPage = new NodePage("Mempool wird geladen, sobald Backend und Frontend bereit sind.", m_pages);
+    m_publicPoolPage = new NodePage("Public Pool wird geladen, sobald Stratum/API und UI bereit sind.", m_pages);
     m_settings = new SettingsPage(m_config, m_pages);
     m_pages->addWidget(m_dashboard);
-    m_pages->addWidget(m_node);
-    m_pages->addWidget(m_logPage);
+    m_pages->addWidget(m_bitcoindLog);
+    m_pages->addWidget(m_electrsLog);
+    m_pages->addWidget(m_mempoolPage);
+    m_pages->addWidget(m_publicPoolPage);
     m_pages->addWidget(m_settings);
 
     root->addWidget(sidebarFrame);
@@ -70,32 +92,412 @@ void MainWindow::buildUi()
     setCentralWidget(central);
 
     QObject::connect(m_sidebar, &QListWidget::currentRowChanged, m_pages, &QStackedWidget::setCurrentIndex);
-    QObject::connect(startButton, &QPushButton::clicked, &m_services, &ServiceManager::startAll);
+    QObject::connect(m_sidebar, &QListWidget::currentRowChanged, this, [this](int row) {
+        if (row >= 0) {
+            m_settingsButton->setChecked(false);
+        }
+    });
+    QObject::connect(m_settingsButton, &QPushButton::clicked, this, [this]() {
+        m_sidebar->clearSelection();
+        m_sidebar->setCurrentRow(-1);
+        m_pages->setCurrentWidget(m_settings);
+        m_settingsButton->setChecked(true);
+    });
 }
 
 void MainWindow::connectSignals()
 {
     QObject::connect(&m_services, &ServiceManager::bitcoinStatusChanged, m_dashboard, &DashboardPage::updateBitcoinStatus);
     QObject::connect(&m_services, &ServiceManager::serviceStatusChanged, m_dashboard, &DashboardPage::updateServiceStatus);
-    QObject::connect(&m_logs, &LogManager::lineAppended, m_logPage, &LogsPage::appendLogLine);
-    QObject::connect(&m_services, &ServiceManager::mempoolFrontendAvailable, m_node, &NodePage::loadMempool);
+    QObject::connect(m_dashboard, &DashboardPage::startServiceRequested, &m_services, &ServiceManager::startService);
+    QObject::connect(m_dashboard, &DashboardPage::stopServiceRequested, &m_services, &ServiceManager::stopService);
+    QObject::connect(&m_logs, &LogManager::lineAppended, m_bitcoindLog, &LogsPage::appendLogLine);
+    QObject::connect(&m_logs, &LogManager::lineAppended, m_electrsLog, &LogsPage::appendLogLine);
+    QObject::connect(&m_services, &ServiceManager::mempoolFrontendAvailable, m_mempoolPage, &NodePage::loadUrl);
+    QObject::connect(&m_services, &ServiceManager::publicPoolFrontendAvailable, m_publicPoolPage, &NodePage::loadUrl);
     QObject::connect(&m_services, &ServiceManager::errorRaised, this, [this](const QString& title, const QString& message) {
         statusBar()->showMessage(QString("%1: %2").arg(title, message), 8000);
     });
+    QObject::connect(&m_config, &ConfigManager::changed, this, &MainWindow::applyStyle);
+
+    m_dashboard->updateBitcoinStatus(m_services.bitcoinStatus());
+    for (const ServiceStatus& status : m_services.statuses()) {
+        m_dashboard->updateServiceStatus(status);
+    }
 }
 
 void MainWindow::configureWebEngine()
 {
-    m_profile = new QWebEngineProfile("mempool", this);
+    m_profile = new QWebEngineProfile("bitcoin-qt", this);
     m_interceptor = new LocalUrlInterceptor(m_profile);
-    m_interceptor->setAllowedPorts({static_cast<int>(m_config.mempoolFrontendPort()), static_cast<int>(m_config.mempoolBackendPort())});
+    m_interceptor->setAllowedPorts({
+        static_cast<int>(m_config.mempoolFrontendPort()),
+        static_cast<int>(m_config.mempoolBackendPort()),
+        static_cast<int>(m_config.publicPoolFrontendPort()),
+        static_cast<int>(m_config.publicPoolApiPort()),
+    });
     m_profile->setUrlRequestInterceptor(m_interceptor);
 
-    auto* page = new QWebEnginePage(m_profile, m_node->webView());
-    m_channel = new QWebChannel(page);
-    m_bridge = new WebBridge(m_services, m_channel);
-    m_channel->registerObject("qt", m_bridge);
-    page->setWebChannel(m_channel);
+    configureWebPage(m_mempoolPage->webView());
+    configureWebPage(m_publicPoolPage->webView());
+}
+
+void MainWindow::applyStyle()
+{
+    const QString theme = m_config.theme().toLower();
+    setStyleSheet(theme == "dark" ? darkStyle() : lightStyle());
+}
+
+QString MainWindow::lightStyle() const
+{
+    return R"QSS(
+        QMainWindow, QWidget {
+            background: #f6f7fb;
+            color: #1d1d1f;
+            font-family: "Helvetica Neue", Arial;
+            font-size: 14px;
+        }
+        QLabel#pageTitle {
+            font-size: 30px;
+            font-weight: 700;
+            color: #1d1d1f;
+        }
+        QWidget#sidebar {
+            background: #ffffff;
+            border-right: 1px solid #e7eaf0;
+        }
+        QLabel#brand {
+            font-size: 22px;
+            font-weight: 800;
+            padding: 26px 22px 18px 22px;
+            color: #1d1d1f;
+        }
+        QListWidget {
+            border: none;
+            outline: none;
+            background: #ffffff;
+            padding: 10px;
+        }
+        QListWidget::item {
+            height: 42px;
+            border-radius: 12px;
+            padding-left: 14px;
+            color: #5f6673;
+        }
+        QListWidget::item:selected {
+            background: #111827;
+            color: #ffffff;
+        }
+        QListWidget::item:hover:!selected {
+            background: #f0f3f8;
+        }
+        QPushButton#sidebarNavButton {
+            margin: 14px 16px 18px 16px;
+            min-height: 42px;
+            text-align: left;
+            padding-left: 14px;
+            border: none;
+            border-radius: 12px;
+            background: #f0f3f8;
+            color: #303746;
+            font-weight: 700;
+        }
+        QPushButton#sidebarNavButton:checked {
+            background: #111827;
+            color: #ffffff;
+        }
+        QWidget#metricCard {
+            background: #ffffff;
+            border: none;
+            border-radius: 18px;
+        }
+        QWidget#metricCard QLabel, QWidget#metricCard QWidget {
+            background: transparent;
+        }
+        QGroupBox {
+            background: #ffffff;
+            border: none;
+            border-radius: 18px;
+            margin-top: 18px;
+            padding: 22px 20px 20px 20px;
+            font-weight: 700;
+        }
+        QGroupBox QLabel, QGroupBox QWidget {
+            background: transparent;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 16px;
+            padding: 0 8px;
+            color: #1d1d1f;
+            background: #f6f7fb;
+        }
+        QPushButton {
+            min-height: 36px;
+            border-radius: 11px;
+            border: none;
+            background: #eef1f6;
+            color: #1d1d1f;
+            padding: 0 16px;
+            font-weight: 600;
+        }
+        QPushButton:hover {
+            background: #e5eaf2;
+        }
+        QPushButton#primaryButton {
+            border: none;
+            background: #111827;
+            color: #ffffff;
+        }
+        QPushButton#secondaryButton {
+            background: #eef1f6;
+            border: 1px solid #cfd7e3;
+            color: #1d1d1f;
+        }
+        QPushButton#secondaryButton:disabled {
+            background: #f4f6fa;
+            border: 1px solid #e1e6ef;
+            color: #a4adbb;
+        }
+        QLineEdit, QSpinBox, QComboBox, QPlainTextEdit {
+            min-height: 36px;
+            border: 1px solid #e2e7ef;
+            border-radius: 11px;
+            background: #ffffff;
+            padding: 0 11px;
+            selection-background-color: #111827;
+        }
+        QGroupBox QLineEdit, QGroupBox QSpinBox, QGroupBox QComboBox {
+            background: #ffffff;
+        }
+        QPlainTextEdit {
+            padding: 10px;
+        }
+        QPlainTextEdit#logView {
+            background: #ffffff;
+            border: none;
+            border-radius: 18px;
+            padding: 18px;
+            font-family: Menlo, Consolas, monospace;
+            font-size: 12px;
+        }
+        QTabWidget::pane {
+            border: none;
+            border-radius: 18px;
+            background: #ffffff;
+            top: -1px;
+        }
+        QTabBar::tab {
+            background: #eef1f6;
+            color: #4b5563;
+            padding: 9px 16px;
+            border-radius: 11px;
+            margin-right: 4px;
+        }
+        QTabBar::tab:selected {
+            background: #111827;
+            color: #ffffff;
+            border: none;
+        }
+        QProgressBar {
+            border: none;
+            border-radius: 6px;
+            background: #e4e8f0;
+        }
+        QProgressBar::chunk {
+            border-radius: 6px;
+            background: #30d158;
+        }
+        QScrollArea {
+            border: none;
+            background: transparent;
+        }
+        QCheckBox {
+            spacing: 9px;
+        }
+    )QSS";
+}
+
+QString MainWindow::darkStyle() const
+{
+    return R"QSS(
+        QMainWindow, QWidget {
+            background: #0f1117;
+            color: #f5f7fb;
+            font-family: "Helvetica Neue", Arial;
+            font-size: 14px;
+        }
+        QLabel#pageTitle {
+            font-size: 30px;
+            font-weight: 700;
+            color: #f5f7fb;
+        }
+        QWidget#sidebar {
+            background: #151922;
+            border-right: 1px solid #242a36;
+        }
+        QLabel#brand {
+            font-size: 22px;
+            font-weight: 800;
+            padding: 26px 22px 18px 22px;
+            color: #f5f7fb;
+        }
+        QListWidget {
+            border: none;
+            outline: none;
+            background: #151922;
+            padding: 10px;
+        }
+        QListWidget::item {
+            height: 42px;
+            border-radius: 12px;
+            padding-left: 14px;
+            color: #aab2c0;
+        }
+        QListWidget::item:selected {
+            background: #f5f7fb;
+            color: #111827;
+        }
+        QListWidget::item:hover:!selected {
+            background: #202633;
+        }
+        QPushButton#sidebarNavButton {
+            margin: 14px 16px 18px 16px;
+            min-height: 42px;
+            text-align: left;
+            padding-left: 14px;
+            border: none;
+            border-radius: 12px;
+            background: #202633;
+            color: #d7dce5;
+            font-weight: 700;
+        }
+        QPushButton#sidebarNavButton:checked {
+            background: #f5f7fb;
+            color: #111827;
+        }
+        QWidget#metricCard {
+            background: #191e29;
+            border: none;
+            border-radius: 18px;
+        }
+        QWidget#metricCard QLabel, QWidget#metricCard QWidget {
+            background: transparent;
+        }
+        QGroupBox {
+            background: #191e29;
+            border: none;
+            border-radius: 18px;
+            margin-top: 18px;
+            padding: 22px 20px 20px 20px;
+            font-weight: 700;
+        }
+        QGroupBox QLabel, QGroupBox QWidget {
+            background: transparent;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 16px;
+            padding: 0 8px;
+            color: #f5f7fb;
+            background: #0f1117;
+        }
+        QPushButton {
+            min-height: 36px;
+            border-radius: 11px;
+            border: none;
+            background: #262d3a;
+            color: #f5f7fb;
+            padding: 0 16px;
+            font-weight: 600;
+        }
+        QPushButton:hover {
+            background: #30394a;
+        }
+        QPushButton#primaryButton {
+            background: #f5f7fb;
+            color: #111827;
+        }
+        QPushButton#secondaryButton {
+            background: #262d3a;
+            border: 1px solid #3b4557;
+            color: #f5f7fb;
+        }
+        QPushButton#secondaryButton:disabled {
+            background: #1d2330;
+            border: 1px solid #2a3241;
+            color: #687386;
+        }
+        QLineEdit, QSpinBox, QComboBox, QPlainTextEdit {
+            min-height: 36px;
+            border: 1px solid #303746;
+            border-radius: 11px;
+            background: #11151e;
+            color: #f5f7fb;
+            padding: 0 11px;
+            selection-background-color: #f5f7fb;
+            selection-color: #111827;
+        }
+        QGroupBox QLineEdit, QGroupBox QSpinBox, QGroupBox QComboBox {
+            background: #11151e;
+        }
+        QPlainTextEdit {
+            padding: 10px;
+        }
+        QPlainTextEdit#logView {
+            background: #191e29;
+            border: none;
+            border-radius: 18px;
+            padding: 18px;
+            font-family: Menlo, Consolas, monospace;
+            font-size: 12px;
+        }
+        QTabWidget::pane {
+            border: none;
+            border-radius: 18px;
+            background: #191e29;
+            top: -1px;
+        }
+        QTabBar::tab {
+            background: #262d3a;
+            color: #aab2c0;
+            padding: 9px 16px;
+            border-radius: 11px;
+            margin-right: 4px;
+        }
+        QTabBar::tab:selected {
+            background: #f5f7fb;
+            color: #1d1d1f;
+            border: none;
+        }
+        QProgressBar {
+            border: none;
+            border-radius: 6px;
+            background: #262d3a;
+        }
+        QProgressBar::chunk {
+            border-radius: 6px;
+            background: #30d158;
+        }
+        QScrollArea {
+            border: none;
+            background: transparent;
+        }
+        QCheckBox {
+            spacing: 9px;
+        }
+    )QSS";
+}
+
+void MainWindow::configureWebPage(QWebEngineView* view)
+{
+    auto* page = new EmbeddedWebPage(m_profile, view);
+    auto* channel = new QWebChannel(page);
+    auto* bridge = new WebBridge(m_services, channel);
+    channel->registerObject("qt", bridge);
+    page->setWebChannel(channel);
+    m_channels.append(channel);
+    m_bridges.append(bridge);
 
     QWebEngineScript bridgeScript;
     bridgeScript.setName("bitcoin-node-webchannel");
@@ -115,9 +517,16 @@ void MainWindow::configureWebEngine()
             var script = document.createElement('script');
             script.src = 'qrc:///qtwebchannel/qwebchannel.js';
             script.onload = install;
-            document.documentElement.appendChild(script);
+            function appendScript() {
+                (document.head || document.documentElement).appendChild(script);
+            }
+            if (document.head || document.documentElement) {
+                appendScript();
+            } else {
+                document.addEventListener('DOMContentLoaded', appendScript, { once: true });
+            }
         })();
     )JS");
     page->scripts().insert(bridgeScript);
-    m_node->webView()->setPage(page);
+    view->setPage(page);
 }
