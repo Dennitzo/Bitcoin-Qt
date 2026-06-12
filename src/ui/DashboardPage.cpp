@@ -94,6 +94,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     m_network = createMetricLabel("Netzwerk", "unknown", this);
     m_bitcoin = createMetricLabel("Bitcoin Core", "Gestoppt", this);
     m_electrs = createMetricLabel("Electrs", "Gestoppt", this);
+    m_mempoolDatabase = createMetricLabel("Mempool DB", "Gestoppt", this);
     m_mempool = createMetricLabel("Mempool", "Offline", this);
     m_publicPool = createMetricLabel("Public Pool", "Offline", this);
     auto* syncWidget = new QWidget(this);
@@ -123,6 +124,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     const QList<QPair<QString, QLabel*>> services{
         {"bitcoind", m_bitcoin},
         {"electrs", m_electrs},
+        {"mempool-db", m_mempoolDatabase},
         {"mempool", m_mempool},
         {"public-pool", m_publicPool},
     };
@@ -148,7 +150,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
         QObject::connect(stop, &QPushButton::clicked, this, [this, id = services.at(i).first]() {
             Q_EMIT stopServiceRequested(id);
         });
-        servicesGrid->addWidget(createCard(wrapper, this, 168), i / 4, i % 4);
+        servicesGrid->addWidget(createCard(wrapper, this, 168), i / 5, i % 5);
     }
     root->addLayout(servicesGrid);
     root->addStretch();
@@ -175,6 +177,8 @@ void DashboardPage::updateServiceStatus(const ServiceStatus& status)
         target = m_bitcoin;
     } else if (status.id == "electrs") {
         target = m_electrs;
+    } else if (status.id == "mempool-db") {
+        target = m_mempoolDatabase;
     } else if (status.id == "mempool") {
         target = m_mempool;
     } else if (status.id == "public-pool") {

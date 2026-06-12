@@ -25,6 +25,7 @@ private:
     QComboBox* m_network = nullptr;
     QSpinBox* m_rpcPort = nullptr;
     QSpinBox* m_electrsPort = nullptr;
+    QSpinBox* m_mempoolDatabasePort = nullptr;
     QSpinBox* m_mempoolBackendPort = nullptr;
     QSpinBox* m_mempoolFrontendPort = nullptr;
     QSpinBox* m_publicPoolApiPort = nullptr;

@@ -54,10 +54,19 @@ cat > "$PREFIX/frontend/server.js" <<'JS'
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const WebSocket = require(path.join(__dirname, '..', 'backend', 'node_modules', 'ws'));
 
 const port = Number(process.env.MEMPOOL_FRONTEND_PORT || process.env.PORT || 8080);
 const backendPort = Number(process.env.MEMPOOL_BACKEND_PORT || 8999);
 const backendHost = process.env.MEMPOOL_BACKEND_HOST || '127.0.0.1';
+const bitcoinRpcPort = Number(process.env.MEMPOOL_BITCOIN_RPC_PORT || 8345);
+const bitcoinRpcUser = process.env.MEMPOOL_BITCOIN_RPC_USER || 'bitcoin';
+const bitcoinRpcPassword = process.env.MEMPOOL_BITCOIN_RPC_PASSWORD || 'bitcoin';
+const fallbackCacheTtlMs = 30000;
+
+let fallbackBlocksCache = null;
+let fallbackBlocksCacheAt = 0;
+let fallbackBlocksInFlight = null;
 
 function firstExisting(paths) {
   for (const candidate of paths) {
@@ -74,6 +83,7 @@ const root = firstExisting([
   path.join(__dirname, 'dist'),
 ]);
 const browserRoot = path.join(__dirname, 'dist', 'mempool', 'browser');
+const fallbackWss = new WebSocket.Server({noServer: true});
 
 function contentType(file) {
   if (file.endsWith('.html')) return 'text/html; charset=utf-8';
@@ -103,12 +113,169 @@ function isBackendRequest(urlPath) {
   return urlPath === '/api' || urlPath.startsWith('/api/');
 }
 
-function fallbackResponse(urlPath) {
+function jsonHeaders() {
+  return {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  };
+}
+
+function rpcCall(method, params = []) {
+  const body = JSON.stringify({jsonrpc: '1.0', id: 'bitcoin-qt-mempool-fallback', method, params});
+  const auth = Buffer.from(`${bitcoinRpcUser}:${bitcoinRpcPassword}`).toString('base64');
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      hostname: '127.0.0.1',
+      port: bitcoinRpcPort,
+      path: '/',
+      method: 'POST',
+      timeout: 2500,
+      headers: {
+        authorization: `Basic ${auth}`,
+        'content-type': 'text/plain',
+        'content-length': Buffer.byteLength(body),
+      },
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        try {
+          const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          if (payload.error) {
+            reject(new Error(payload.error.message || 'Bitcoin RPC error'));
+            return;
+          }
+          resolve(payload.result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    request.on('timeout', () => request.destroy(new Error('Bitcoin RPC timeout')));
+    request.on('error', reject);
+    request.end(body);
+  });
+}
+
+function blockFromCore(block) {
+  return {
+    id: block.hash,
+    height: block.height,
+    version: block.version,
+    timestamp: block.time,
+    bits: parseInt(block.bits || '0', 16),
+    nonce: block.nonce || 0,
+    difficulty: block.difficulty || 0,
+    merkle_root: block.merkleroot || '',
+    tx_count: Array.isArray(block.tx) ? block.tx.length : (block.nTx || 0),
+    size: block.size || 0,
+    weight: block.weight || 0,
+    previousblockhash: block.previousblockhash || '',
+    mediantime: block.mediantime || block.time,
+    stale: false,
+    extras: {
+      reward: 0,
+      totalFees: 0,
+      avgFee: 0,
+      avgFeeRate: 0,
+      pool: {id: 0, name: 'Bitcoin Core', slug: 'bitcoin-core'},
+      coinbaseRaw: '',
+      coinbaseAddress: '',
+      coinbaseSignature: '',
+      coinbaseSignatureAscii: '',
+      header: '',
+      matchRate: 0,
+      expectedFees: 0,
+      expectedWeight: 0,
+      similarity: 0,
+      cpfp: 0,
+      medianFee: 0,
+      feeRange: [0, 0, 0, 0, 0, 0, 0],
+      totalInputs: 0,
+      totalOutputs: 0,
+      segwitTotalTxs: 0,
+      segwitTotalSize: 0,
+      segwitTotalWeight: 0,
+      firstSeen: null,
+      utxoSetChange: 0,
+      utxoSetSize: null,
+      totalInputAmt: null,
+    },
+  };
+}
+
+async function loadFallbackBlocks(info) {
+  const tip = Number(info.blocks || 0);
+  const start = Math.max(0, tip - 7);
+  const blocks = [];
+  for (let height = start; height <= tip; height += 1) {
+    const hash = await rpcCall('getblockhash', [height]);
+    const block = await rpcCall('getblock', [hash, 1]);
+    blocks.push(blockFromCore(block));
+  }
+  return blocks;
+}
+
+async function fallbackBlocks(info = null) {
+  const now = Date.now();
+  if (fallbackBlocksCache && now - fallbackBlocksCacheAt < fallbackCacheTtlMs) {
+    return fallbackBlocksCache;
+  }
+  if (fallbackBlocksInFlight) {
+    return fallbackBlocksInFlight;
+  }
+
+  fallbackBlocksInFlight = (async () => {
+    const blockchainInfo = info || await rpcCall('getblockchaininfo');
+    const blocks = await loadFallbackBlocks(blockchainInfo);
+    fallbackBlocksCache = blocks;
+    fallbackBlocksCacheAt = Date.now();
+    fallbackBlocksInFlight = null;
+    return blocks;
+  })().catch((error) => {
+    fallbackBlocksInFlight = null;
+    throw error;
+  });
+
+  return fallbackBlocksInFlight;
+}
+
+async function fallbackResponse(urlPath) {
   const cleanPath = urlPath.split('?')[0];
+  if (cleanPath === '/api/v1/init-data') {
+    const info = await rpcCall('getblockchaininfo');
+    const blocks = await fallbackBlocks(info);
+    return {
+      statusCode: 200,
+      headers: jsonHeaders(),
+      body: JSON.stringify(fallbackInitPayload(info, blocks)),
+    };
+  }
+  if (cleanPath === '/api/v1/blocks') {
+    return {
+      statusCode: 200,
+      headers: jsonHeaders(),
+      body: JSON.stringify(await fallbackBlocks()),
+    };
+  }
+  if (cleanPath === '/api/v1/fees/mempool-blocks') {
+    return {
+      statusCode: 200,
+      headers: jsonHeaders(),
+      body: JSON.stringify([]),
+    };
+  }
+  if (cleanPath === '/api/v1/mempool') {
+    return {
+      statusCode: 200,
+      headers: jsonHeaders(),
+      body: JSON.stringify({count: 0, vsize: 0, total_fee: 0, fee_histogram: []}),
+    };
+  }
   if (cleanPath === '/api/v1/fees/recommended') {
     return {
       statusCode: 200,
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
+      headers: jsonHeaders(),
       body: JSON.stringify({
         fastestFee: 1,
         halfHourFee: 1,
@@ -121,7 +288,7 @@ function fallbackResponse(urlPath) {
   if (cleanPath === '/api/v1/fees/precise') {
     return {
       statusCode: 200,
-      headers: {'Content-Type': 'application/json; charset=utf-8'},
+      headers: jsonHeaders(),
       body: JSON.stringify({
         fastestFee: 1,
         halfHourFee: 1,
@@ -135,7 +302,157 @@ function fallbackResponse(urlPath) {
   return null;
 }
 
+function fallbackInitPayload(info, blocks) {
+  return {
+    backend: 'bitcoin-core-ibd',
+    mempoolInfo: {loaded: true, size: 0, bytes: 0, usage: 0, total_fee: 0},
+    vBytesPerSecond: 0,
+    blocks,
+    conversions: {},
+    'mempool-blocks': [],
+    transactions: [],
+    backendInfo: {
+      hostname: 'localhost',
+      version: 'bitcoin-qt',
+      gitCommit: '',
+      lightning: false,
+      backend: 'bitcoin-core-ibd',
+      coreVersion: '',
+      osVersion: '',
+    },
+    loadingIndicators: {},
+    fees: {
+      fastestFee: 1,
+      halfHourFee: 1,
+      hourFee: 1,
+      economyFee: 1,
+      minimumFee: 1,
+      mempoolBlocks: [],
+    },
+    bitcoinCoreInfo: {
+      blocks: info.blocks,
+      headers: info.headers,
+      initialblockdownload: info.initialblockdownload,
+      verificationprogress: info.verificationprogress,
+    },
+  };
+}
+
+async function fallbackWebsocketPayload(keys = []) {
+  const info = await rpcCall('getblockchaininfo');
+  const blocks = await fallbackBlocks(info);
+  const init = fallbackInitPayload(info, blocks);
+  if (!keys.length || keys.includes('init')) {
+    return init;
+  }
+  const response = {};
+  if (keys.includes('blocks')) {
+    response.blocks = init.blocks;
+  }
+  if (keys.includes('mempool-blocks')) {
+    response['mempool-blocks'] = init['mempool-blocks'];
+  }
+  if (keys.includes('stats')) {
+    response.mempoolInfo = init.mempoolInfo;
+    response.vBytesPerSecond = init.vBytesPerSecond;
+    response.fees = init.fees;
+  }
+  return response;
+}
+
+function attachFallbackWebsocket(socket) {
+  socket.on('message', (raw) => {
+    let message = {};
+    try {
+      message = JSON.parse(raw.toString('utf8'));
+    } catch {
+      socket.close();
+      return;
+    }
+
+    if (message.action === 'ping') {
+      socket.send(JSON.stringify({pong: true}));
+      return;
+    }
+
+    const wants = [];
+    if (message.action === 'init') {
+      wants.push('init');
+    }
+    if (message.action === 'want' && Array.isArray(message.data)) {
+      wants.push(...message.data);
+    }
+    if (message['refresh-blocks']) {
+      wants.push('blocks');
+    }
+
+    fallbackWebsocketPayload(wants).then((payload) => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(payload));
+      }
+    }).catch(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+    });
+  });
+}
+
+function prefersCoreFallback(urlPath) {
+  const cleanPath = urlPath.split('?')[0];
+  return [
+    '/api/v1/init-data',
+    '/api/v1/blocks',
+    '/api/v1/fees/mempool-blocks',
+    '/api/v1/mempool',
+    '/api/v1/fees/recommended',
+    '/api/v1/fees/precise',
+  ].includes(cleanPath);
+}
+
+async function isInitialBlockDownload() {
+  const info = await rpcCall('getblockchaininfo');
+  return Boolean(info.initialblockdownload);
+}
+
+function shouldUseFallback(urlPath, statusCode, body) {
+  const cleanPath = urlPath.split('?')[0];
+  const text = body.toString('utf8').trim();
+  if (statusCode === 503) {
+    return true;
+  }
+  if (cleanPath === '/api/v1/init-data' && (!text || text === '{}')) {
+    return true;
+  }
+  if (cleanPath === '/api/v1/blocks' && (!text || text === '[]')) {
+    return true;
+  }
+  return false;
+}
+
 function proxyHttp(req, res) {
+  if (prefersCoreFallback(req.url || '/')) {
+    isInitialBlockDownload().then((isIbd) => {
+      if (!isIbd) {
+        proxyHttpToBackend(req, res);
+        return;
+      }
+      return fallbackResponse(req.url || '/').then((fallback) => {
+        if (!fallback) {
+          proxyHttpToBackend(req, res);
+          return;
+        }
+        res.writeHead(fallback.statusCode, fallback.headers);
+        res.end(fallback.body);
+      });
+    }).catch(() => proxyHttpToBackend(req, res));
+    return;
+  }
+
+  proxyHttpToBackend(req, res);
+}
+
+function proxyHttpToBackend(req, res) {
   const proxy = http.request({
     hostname: backendHost,
     port: backendPort,
@@ -150,26 +467,43 @@ function proxyHttp(req, res) {
     backendRes.on('data', (chunk) => chunks.push(chunk));
     backendRes.on('end', () => {
       const body = Buffer.concat(chunks);
-      const fallback = backendRes.statusCode === 503 ? fallbackResponse(req.url || '/') : null;
+      if (shouldUseFallback(req.url || '/', backendRes.statusCode || 502, body)) {
+        fallbackResponse(req.url || '/').then((fallback) => {
+          if (fallback) {
+            res.writeHead(fallback.statusCode, fallback.headers);
+            res.end(fallback.body);
+            return;
+          }
+          res.writeHead(backendRes.statusCode || 502, backendRes.headers);
+          res.end(body);
+        }).catch(() => {
+          res.writeHead(backendRes.statusCode || 502, backendRes.headers);
+          res.end(body);
+        });
+        return;
+      }
+      res.writeHead(backendRes.statusCode || 502, {
+        ...backendRes.headers,
+        'Cache-Control': 'no-store',
+      });
+      res.end(body);
+    });
+  });
+
+  proxy.setTimeout(4000, () => proxy.destroy(new Error('Mempool backend timeout')));
+  proxy.on('error', (error) => {
+    fallbackResponse(req.url || '/').then((fallback) => {
       if (fallback) {
         res.writeHead(fallback.statusCode, fallback.headers);
         res.end(fallback.body);
         return;
       }
-      res.writeHead(backendRes.statusCode || 502, backendRes.headers);
-      res.end(body);
+      res.writeHead(502, jsonHeaders());
+      res.end(JSON.stringify({error: `Mempool backend unavailable: ${error.message}`}));
+    }).catch(() => {
+      res.writeHead(502, jsonHeaders());
+      res.end(JSON.stringify({error: `Mempool backend unavailable: ${error.message}`}));
     });
-  });
-
-  proxy.on('error', (error) => {
-    const fallback = fallbackResponse(req.url || '/');
-    if (fallback) {
-      res.writeHead(fallback.statusCode, fallback.headers);
-      res.end(fallback.body);
-      return;
-    }
-    res.writeHead(502, {'Content-Type': 'application/json; charset=utf-8'});
-    res.end(JSON.stringify({error: `Mempool backend unavailable: ${error.message}`}));
   });
 
   req.pipe(proxy);
@@ -197,6 +531,19 @@ server.on('upgrade', (req, socket, head) => {
     return;
   }
 
+  isInitialBlockDownload().then((isIbd) => {
+    if (!isIbd) {
+      proxyWebsocket(req, socket, head);
+      return;
+    }
+
+    fallbackWss.handleUpgrade(req, socket, head, (ws) => {
+      attachFallbackWebsocket(ws);
+    });
+  }).catch(() => proxyWebsocket(req, socket, head));
+});
+
+function proxyWebsocket(req, socket, head) {
   const proxy = http.request({
     hostname: backendHost,
     port: backendPort,
@@ -229,7 +576,7 @@ server.on('upgrade', (req, socket, head) => {
 
   proxy.on('error', () => socket.destroy());
   proxy.end();
-});
+}
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`Mempool frontend serving ${root} on http://127.0.0.1:${port}, proxying /api to http://${backendHost}:${backendPort}`);

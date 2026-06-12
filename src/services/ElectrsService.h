@@ -28,5 +28,6 @@ private:
     QTimer m_healthTimer;
     QTimer m_readinessTimer;
     RpcClient m_rpc;
+    QString m_lastLoggedStatus;
     bool m_startRequested = false;
 };

@@ -55,6 +55,7 @@ void ConfigManager::setBaseDataDir(const QString& path)
     dir.mkpath(".");
     dir.mkpath("bitcoin");
     dir.mkpath("electrs");
+    dir.mkpath("mempool-db");
     dir.mkpath("mempool");
     dir.mkpath("public-pool");
     dir.mkpath("logs");
@@ -107,6 +108,11 @@ QString ConfigManager::mempoolDataDir() const
     return serviceDir("mempool");
 }
 
+QString ConfigManager::mempoolDatabaseDir() const
+{
+    return serviceDir("mempool-db");
+}
+
 QString ConfigManager::bitcoinExecutable() const
 {
     return executableSetting(m_settings, "executables/bitcoind", RuntimePaths::executable("bitcoin/bin/bitcoind"));
@@ -115,6 +121,49 @@ QString ConfigManager::bitcoinExecutable() const
 QString ConfigManager::electrsExecutable() const
 {
     return executableSetting(m_settings, "executables/electrs", RuntimePaths::executable("electrs/bin/electrs"));
+}
+
+QString ConfigManager::mariadbExecutable() const
+{
+    const QString configured = m_settings.value("executables/mariadbd").toString();
+    if (!configured.isEmpty()) {
+        return configured;
+    }
+
+    const QString mariadbd = RuntimePaths::executable("mariadb/bin/mariadbd");
+    if (RuntimePaths::isExecutableAvailable(mariadbd)) {
+        return mariadbd;
+    }
+
+    const QString mysqld = RuntimePaths::executable("mariadb/bin/mysqld");
+    if (RuntimePaths::isExecutableAvailable(mysqld)) {
+        return mysqld;
+    }
+
+    const QString libexecMariadbd = RuntimePaths::executable("mariadb/libexec/mariadbd");
+    if (RuntimePaths::isExecutableAvailable(libexecMariadbd)) {
+        return libexecMariadbd;
+    }
+    return RuntimePaths::executable("mariadb/libexec/mysqld");
+}
+
+QString ConfigManager::mariadbInstallDbExecutable() const
+{
+    const QString configured = m_settings.value("executables/mariadbInstallDb").toString();
+    if (!configured.isEmpty()) {
+        return configured;
+    }
+
+    const QString script = RuntimePaths::executable("mariadb/scripts/mariadb-install-db");
+    if (RuntimePaths::isExecutableAvailable(script)) {
+        return script;
+    }
+
+    const QString bin = RuntimePaths::executable("mariadb/bin/mariadb-install-db");
+    if (RuntimePaths::isExecutableAvailable(bin)) {
+        return bin;
+    }
+    return RuntimePaths::executable("mariadb/scripts/mysql_install_db");
 }
 
 QString ConfigManager::nodeExecutable() const
@@ -161,6 +210,11 @@ quint16 ConfigManager::bitcoinRpcPort() const
 quint16 ConfigManager::electrsPort() const
 {
     return static_cast<quint16>(m_settings.value("electrs/port", 50001).toUInt());
+}
+
+quint16 ConfigManager::mempoolDatabasePort() const
+{
+    return static_cast<quint16>(m_settings.value("mempool/databasePort", 3306).toUInt());
 }
 
 quint16 ConfigManager::mempoolBackendPort() const
@@ -211,6 +265,19 @@ QString ConfigManager::language() const
 bool ConfigManager::autostart() const
 {
     return m_settings.value("app/autostart", true).toBool();
+}
+
+QUrl ConfigManager::webViewUrl(const QString& id) const
+{
+    return QUrl(m_settings.value(QString("webviews/%1/url").arg(id)).toString());
+}
+
+void ConfigManager::setWebViewUrl(const QString& id, const QUrl& url)
+{
+    if (!url.isValid() || (url.scheme() != "http" && url.scheme() != "https")) {
+        return;
+    }
+    m_settings.setValue(QString("webviews/%1/url").arg(id), url.toString(QUrl::FullyEncoded));
 }
 
 QString ConfigManager::serviceDir(const QString& name) const

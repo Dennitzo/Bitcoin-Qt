@@ -16,8 +16,11 @@ runtime/bitcoin/
 runtime/electrs/
 runtime/mempool/
 runtime/node/
+runtime/mariadb/
 runtime/public-pool/
 !runtime/README.md
+!runtime/mariadb/
+!runtime/mariadb/README.md
 node_modules/
 dist/
 coverage/

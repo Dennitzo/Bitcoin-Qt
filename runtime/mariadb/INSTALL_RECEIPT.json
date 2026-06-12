@@ -1,0 +1,135 @@
+{
+  "homebrew_version": "6.0.1",
+  "used_options": [],
+  "unused_options": [],
+  "built_as_bottle": false,
+  "poured_from_bottle": false,
+  "loaded_from_api": false,
+  "loaded_from_internal_api": false,
+  "installed_on_request": true,
+  "changed_files": null,
+  "time": 1781292480,
+  "source_modified_time": 1779823270,
+  "compiler": "clang",
+  "aliases": [
+    "mariadb@12.3"
+  ],
+  "runtime_dependencies": [
+    {
+      "full_name": "lz4",
+      "version": "1.10.0",
+      "revision": 0,
+      "bottle_rebuild": 1,
+      "pkg_version": "1.10.0",
+      "declared_directly": true
+    },
+    {
+      "full_name": "mecab",
+      "version": "0.996",
+      "revision": 0,
+      "pkg_version": "0.996",
+      "declared_directly": false
+    },
+    {
+      "full_name": "mecab-ipadic",
+      "version": "2.7.0-20070801",
+      "revision": 0,
+      "bottle_rebuild": 1,
+      "pkg_version": "2.7.0-20070801",
+      "declared_directly": false
+    },
+    {
+      "full_name": "msgpack",
+      "version": "7.0.1",
+      "revision": 0,
+      "pkg_version": "7.0.1",
+      "declared_directly": false
+    },
+    {
+      "full_name": "onigmo",
+      "version": "6.2.0",
+      "revision": 0,
+      "pkg_version": "6.2.0",
+      "declared_directly": false
+    },
+    {
+      "full_name": "simdjson",
+      "version": "4.6.4",
+      "revision": 0,
+      "pkg_version": "4.6.4",
+      "declared_directly": false
+    },
+    {
+      "full_name": "xz",
+      "version": "5.8.3",
+      "revision": 0,
+      "pkg_version": "5.8.3",
+      "declared_directly": true
+    },
+    {
+      "full_name": "zstd",
+      "version": "1.5.7",
+      "revision": 1,
+      "pkg_version": "1.5.7_1",
+      "declared_directly": true
+    },
+    {
+      "full_name": "groonga",
+      "version": "16.0.5",
+      "revision": 0,
+      "pkg_version": "16.0.5",
+      "declared_directly": true
+    },
+    {
+      "full_name": "lzo",
+      "version": "2.10",
+      "revision": 0,
+      "bottle_rebuild": 0,
+      "pkg_version": "2.10",
+      "declared_directly": true
+    },
+    {
+      "full_name": "ca-certificates",
+      "version": "2026-05-14",
+      "revision": 0,
+      "bottle_rebuild": 0,
+      "pkg_version": "2026-05-14",
+      "declared_directly": false
+    },
+    {
+      "full_name": "openssl@3",
+      "version": "3.6.2",
+      "revision": 0,
+      "pkg_version": "3.6.2",
+      "declared_directly": true
+    },
+    {
+      "full_name": "pcre2",
+      "version": "10.47",
+      "revision": 1,
+      "pkg_version": "10.47_1",
+      "declared_directly": true
+    }
+  ],
+  "source": {
+    "tap": "homebrew/core",
+    "tap_git_head": null,
+    "spec": "stable",
+    "path": "/Users/melow/Library/Caches/Homebrew/api-source/Homebrew/homebrew-core/f9c42027231547178b8ba6585f6ee4f225872d91/Formula/m/mariadb.rb",
+    "versions": {
+      "stable": "12.3.2",
+      "head": null,
+      "version_scheme": 0,
+      "compatibility_version": null
+    }
+  },
+  "arch": "x86_64",
+  "built_on": {
+    "os": "Macintosh",
+    "os_version": "macOS 12.7",
+    "cpu_family": "ivybridge",
+    "xcode": "14.2",
+    "clt": "14.2.0.0.1.1668646533",
+    "preferred_perl": "5.30"
+  }
+}

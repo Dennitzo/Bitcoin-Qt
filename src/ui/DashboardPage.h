@@ -35,6 +35,7 @@ private:
     QLabel* m_network = nullptr;
     QLabel* m_bitcoin = nullptr;
     QLabel* m_electrs = nullptr;
+    QLabel* m_mempoolDatabase = nullptr;
     QLabel* m_mempool = nullptr;
     QLabel* m_publicPool = nullptr;
     QProgressBar* m_syncProgress = nullptr;

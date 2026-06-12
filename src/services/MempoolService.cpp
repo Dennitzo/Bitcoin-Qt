@@ -17,9 +17,11 @@ MempoolService::MempoolService(ConfigManager& config, LogManager& logs, QObject*
 {
     attachProcess(m_backend, "mempool-backend");
     attachProcess(m_frontend, "mempool-frontend");
+    m_databaseHealth.setInterval(1500);
     m_electrsHealth.setInterval(2500);
     m_backendHealth.setInterval(2500);
     m_frontendHealth.setInterval(2500);
+    QObject::connect(&m_databaseHealth, &QTimer::timeout, this, &MempoolService::waitForDatabase);
     QObject::connect(&m_electrsHealth, &QTimer::timeout, this, &MempoolService::waitForElectrs);
     QObject::connect(&m_backendHealth, &QTimer::timeout, this, &MempoolService::checkBackend);
     QObject::connect(&m_frontendHealth, &QTimer::timeout, this, &MempoolService::checkFrontend);
@@ -33,13 +35,14 @@ MempoolService::~MempoolService()
 void MempoolService::start()
 {
     m_startRequested = true;
-    waitForElectrs();
-    m_electrsHealth.start();
+    waitForDatabase();
+    m_databaseHealth.start();
 }
 
 void MempoolService::stop()
 {
     m_startRequested = false;
+    m_databaseHealth.stop();
     m_electrsHealth.stop();
     m_backendHealth.stop();
     m_frontendHealth.stop();
@@ -58,6 +61,25 @@ void MempoolService::stop()
 QUrl MempoolService::frontendUrl() const
 {
     return QUrl(QString("http://%1:%2").arg(config().mempoolHost()).arg(config().mempoolFrontendPort()));
+}
+
+void MempoolService::waitForDatabase()
+{
+    if (!m_startRequested || m_backend.state() != QProcess::NotRunning) {
+        return;
+    }
+
+    setState(ServiceState::Starting, "Warte auf Mempool DB");
+    auto* socket = new QTcpSocket(this);
+    QObject::connect(socket, &QTcpSocket::connected, this, [this, socket]() {
+        m_databaseHealth.stop();
+        socket->disconnectFromHost();
+        socket->deleteLater();
+        waitForElectrs();
+        m_electrsHealth.start();
+    });
+    QObject::connect(socket, &QTcpSocket::errorOccurred, socket, &QTcpSocket::deleteLater);
+    socket->connectToHost("127.0.0.1", config().mempoolDatabasePort());
 }
 
 void MempoolService::waitForElectrs()
@@ -120,6 +142,9 @@ void MempoolService::startFrontend()
     QProcessEnvironment frontendEnv = QProcessEnvironment::systemEnvironment();
     frontendEnv.insert("MEMPOOL_FRONTEND_PORT", QString::number(config().mempoolFrontendPort()));
     frontendEnv.insert("MEMPOOL_BACKEND_PORT", QString::number(config().mempoolBackendPort()));
+    frontendEnv.insert("MEMPOOL_BITCOIN_RPC_PORT", QString::number(config().bitcoinRpcPort()));
+    frontendEnv.insert("MEMPOOL_BITCOIN_RPC_USER", config().rpcUser());
+    frontendEnv.insert("MEMPOOL_BITCOIN_RPC_PASSWORD", config().rpcPassword());
     frontendEnv.insert("PORT", QString::number(config().mempoolFrontendPort()));
     m_frontend.setProcessEnvironment(frontendEnv);
     m_frontend.start(node, {"frontend/server.js"});
@@ -175,9 +200,36 @@ void MempoolService::attachProcess(QProcess& child, const QString& logId)
         setState(ServiceState::Error, "Mempool Prozessfehler");
     });
     QObject::connect(&child, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this, logId](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (!m_startRequested) {
+            return;
+        }
+
         if (exitStatus == QProcess::CrashExit || exitCode != 0) {
             setState(ServiceState::Error, QString("%1 beendet mit Code %2").arg(logId).arg(exitCode));
+        } else {
+            setState(ServiceState::Starting, QString("%1 wurde beendet").arg(logId));
         }
+
+        QTimer::singleShot(1500, this, [this, logId]() {
+            if (!m_startRequested) {
+                return;
+            }
+
+            if (logId == "mempool-frontend") {
+                startFrontend();
+                return;
+            }
+
+            if (logId == "mempool-backend") {
+                if (m_frontend.state() != QProcess::NotRunning) {
+                    m_frontend.terminate();
+                    if (!m_frontend.waitForFinished(3000)) {
+                        m_frontend.kill();
+                    }
+                }
+                startBackend();
+            }
+        });
     });
 }
 
@@ -189,6 +241,7 @@ QString MempoolService::configFilePath() const
 bool MempoolService::writeBackendConfig() const
 {
     QDir().mkpath(config().mempoolDataDir());
+    QDir().mkpath(QDir(config().mempoolDataDir()).filePath("cache"));
 
     const QString network = config().network() == BitcoinNetwork::Mainnet ? "mainnet"
         : config().network() == BitcoinNetwork::Signet ? "signet"
@@ -203,6 +256,9 @@ bool MempoolService::writeBackendConfig() const
         {"BACKEND", "electrum"},
         {"HTTP_PORT", static_cast<int>(config().mempoolBackendPort())},
         {"CACHE_DIR", QDir(config().mempoolDataDir()).filePath("cache")},
+        {"CLEAR_PROTECTION_MINUTES", 20},
+        {"INDEXING_BLOCKS_AMOUNT", 52560},
+        {"POLL_RATE_MS", 2000},
         {"STDOUT_LOG_MIN_PRIORITY", "info"},
         {"EXTERNAL_ASSETS", QJsonArray{}},
         {"AUTOMATIC_POOLS_UPDATE", false},
@@ -231,7 +287,18 @@ bool MempoolService::writeBackendConfig() const
         {"PORT", static_cast<int>(config().electrsPort())},
         {"TLS_ENABLED", false},
     });
-    root.insert("DATABASE", QJsonObject{{"ENABLED", false}});
+    root.insert("DATABASE", QJsonObject{
+        {"ENABLED", true},
+        {"HOST", "127.0.0.1"},
+        {"SOCKET", ""},
+        {"PORT", static_cast<int>(config().mempoolDatabasePort())},
+        {"DATABASE", "mempool"},
+        {"USERNAME", "mempool"},
+        {"PASSWORD", "mempool"},
+        {"TIMEOUT", 180000},
+        {"PID_DIR", config().mempoolDatabaseDir()},
+        {"POOL_SIZE", 50},
+    });
     root.insert("SYSLOG", QJsonObject{{"ENABLED", false}});
     root.insert("STATISTICS", QJsonObject{{"ENABLED", false}});
     root.insert("LIGHTNING", QJsonObject{{"ENABLED", false}});

@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QSettings>
 #include <QString>
+#include <QUrl>
 
 class ConfigManager final : public QObject {
     Q_OBJECT
@@ -24,9 +25,12 @@ public:
     QString bitcoinDataDir() const;
     QString electrsDataDir() const;
     QString mempoolDataDir() const;
+    QString mempoolDatabaseDir() const;
 
     QString bitcoinExecutable() const;
     QString electrsExecutable() const;
+    QString mariadbExecutable() const;
+    QString mariadbInstallDbExecutable() const;
     QString nodeExecutable() const;
     void setExecutable(const QString& key, const QString& path);
 
@@ -35,6 +39,7 @@ public:
     BitcoinNetwork network() const;
     quint16 bitcoinRpcPort() const;
     quint16 electrsPort() const;
+    quint16 mempoolDatabasePort() const;
     quint16 mempoolBackendPort() const;
     quint16 mempoolFrontendPort() const;
     QString mempoolHost() const;
@@ -46,6 +51,8 @@ public:
     QString theme() const;
     QString language() const;
     bool autostart() const;
+    QUrl webViewUrl(const QString& id) const;
+    void setWebViewUrl(const QString& id, const QUrl& url);
 
 Q_SIGNALS:
     void changed();

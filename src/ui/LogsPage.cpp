@@ -16,6 +16,8 @@ LogsPage::LogsPage(const QString& title, const QStringList& serviceIds, QWidget*
     m_editor->setReadOnly(true);
     m_editor->setLineWrapMode(QPlainTextEdit::WidgetWidth);
     m_editor->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    m_editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_editor->setObjectName("logView");
     root->addWidget(m_editor, 1);
 }

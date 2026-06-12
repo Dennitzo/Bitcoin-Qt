@@ -19,7 +19,9 @@ void LocalUrlInterceptor::interceptRequest(QWebEngineUrlRequestInfo& info)
         return;
     }
     const bool localHost = url.host() == "127.0.0.1" || url.host() == "localhost";
-    if ((url.scheme() == "http" || url.scheme() == "https") && localHost && m_allowedPorts.contains(url.port())) {
+    if ((url.scheme() == "http" || url.scheme() == "https" || url.scheme() == "ws" || url.scheme() == "wss")
+        && localHost
+        && m_allowedPorts.contains(url.port())) {
         return;
     }
     info.block(true);

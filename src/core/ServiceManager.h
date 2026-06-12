@@ -6,6 +6,7 @@
 
 #include "../services/BitcoinCoreService.h"
 #include "../services/ElectrsService.h"
+#include "../services/MempoolDatabaseService.h"
 #include "../services/MempoolService.h"
 #include "../services/PublicPoolService.h"
 
@@ -43,6 +44,7 @@ private:
     ConfigManager& m_config;
     BitcoinCoreService m_bitcoin;
     ElectrsService m_electrs;
+    MempoolDatabaseService m_mempoolDatabase;
     MempoolService m_mempool;
     PublicPoolService m_publicPool;
 };

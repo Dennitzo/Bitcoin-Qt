@@ -1,9 +1,11 @@
 #include "MainWindow.h"
 
 #include <QHBoxLayout>
+#include <QDebug>
 #include <QLabel>
 #include <QListWidgetItem>
 #include <QMessageBox>
+#include <QPixmap>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QToolButton>
@@ -24,10 +26,15 @@ public:
 protected:
     void javaScriptConsoleMessage(JavaScriptConsoleMessageLevel level, const QString& message, int lineNumber, const QString& sourceID) override
     {
-        Q_UNUSED(level)
-        Q_UNUSED(message)
-        Q_UNUSED(lineNumber)
-        Q_UNUSED(sourceID)
+        const char* levelName = "info";
+        if (level == WarningMessageLevel) {
+            levelName = "warning";
+        } else if (level == ErrorMessageLevel) {
+            levelName = "error";
+        }
+        qWarning().noquote() << QString("WebView JS %1: %2 (%3:%4)")
+            .arg(levelName, message, sourceID)
+            .arg(lineNumber);
     }
 };
 
@@ -61,8 +68,20 @@ void MainWindow::buildUi()
     sidebarFrame->setObjectName("sidebar");
     auto* sidebarLayout = new QVBoxLayout(sidebarFrame);
     sidebarLayout->setContentsMargins(0, 0, 0, 0);
-    auto* brand = new QLabel("Bitcoin-Qt", sidebarFrame);
+    sidebarLayout->setSpacing(0);
+    auto* brand = new QWidget(sidebarFrame);
     brand->setObjectName("brand");
+    auto* brandLayout = new QHBoxLayout(brand);
+    brandLayout->setContentsMargins(22, 24, 22, 16);
+    brandLayout->setSpacing(10);
+    auto* brandIcon = new QLabel(brand);
+    brandIcon->setObjectName("brandIcon");
+    brandIcon->setFixedSize(34, 34);
+    brandIcon->setPixmap(QPixmap(":/icons/Bitcoin.png").scaled(34, 34, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    auto* brandText = new QLabel("Bitcoin-Qt", brand);
+    brandText->setObjectName("brandText");
+    brandLayout->addWidget(brandIcon);
+    brandLayout->addWidget(brandText, 1);
     m_sidebar = new QListWidget(sidebarFrame);
     m_sidebar->addItems({"Dashboard", "Bitcoind", "Electrs", "Mempool", "Public Pool"});
     m_sidebar->setCurrentRow(0);
@@ -77,8 +96,8 @@ void MainWindow::buildUi()
     m_dashboard = new DashboardPage(m_config, m_pages);
     m_bitcoindLog = new LogsPage("Bitcoind Log", {"bitcoind"}, m_pages);
     m_electrsLog = new LogsPage("Electrs Log", {"electrs"}, m_pages);
-    m_mempoolPage = new NodePage("Mempool wird geladen, sobald Backend und Frontend bereit sind.", m_pages);
-    m_publicPoolPage = new NodePage("Public Pool wird geladen, sobald Stratum/API und UI bereit sind.", m_pages);
+    m_mempoolPage = new NodePage(m_config, "mempool", "Mempool wird geladen, sobald Backend und Frontend bereit sind.", m_pages);
+    m_publicPoolPage = new NodePage(m_config, "publicPool", "Public Pool wird geladen, sobald Stratum/API und UI bereit sind.", m_pages);
     m_settings = new SettingsPage(m_config, m_pages);
     m_pages->addWidget(m_dashboard);
     m_pages->addWidget(m_bitcoindLog);
@@ -164,13 +183,18 @@ QString MainWindow::lightStyle() const
         }
         QWidget#sidebar {
             background: #ffffff;
-            border-right: 1px solid #e7eaf0;
+            border: none;
         }
-        QLabel#brand {
+        QWidget#brand, QWidget#brand QLabel {
+            background: #ffffff;
+        }
+        QLabel#brandText {
             font-size: 22px;
             font-weight: 800;
-            padding: 26px 22px 18px 22px;
             color: #1d1d1f;
+        }
+        QLabel#brandIcon {
+            background: transparent;
         }
         QListWidget {
             border: none;
@@ -214,23 +238,25 @@ QString MainWindow::lightStyle() const
         QWidget#metricCard QLabel, QWidget#metricCard QWidget {
             background: transparent;
         }
-        QGroupBox {
+        QWidget#settingsContent {
+            background: transparent;
+        }
+        QWidget#settingsSection {
             background: #ffffff;
             border: none;
             border-radius: 18px;
-            margin-top: 18px;
-            padding: 22px 20px 20px 20px;
-            font-weight: 700;
         }
-        QGroupBox QLabel, QGroupBox QWidget {
+        QWidget#settingsSection QLabel, QWidget#settingsSection QWidget {
             background: transparent;
         }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 16px;
-            padding: 0 8px;
+        QLabel#settingsSectionTitle {
             color: #1d1d1f;
-            background: #f6f7fb;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        QLabel#settingsFieldLabel {
+            color: #687386;
+            font-weight: 600;
         }
         QPushButton {
             min-height: 36px;
@@ -267,7 +293,9 @@ QString MainWindow::lightStyle() const
             padding: 0 11px;
             selection-background-color: #111827;
         }
-        QGroupBox QLineEdit, QGroupBox QSpinBox, QGroupBox QComboBox {
+        QWidget#settingsSection QLineEdit,
+        QWidget#settingsSection QSpinBox,
+        QWidget#settingsSection QComboBox {
             background: #ffffff;
         }
         QPlainTextEdit {
@@ -280,6 +308,14 @@ QString MainWindow::lightStyle() const
             padding: 18px;
             font-family: Menlo, Consolas, monospace;
             font-size: 12px;
+        }
+        QPlainTextEdit#logView QScrollBar:vertical,
+        QPlainTextEdit#logView QScrollBar:horizontal,
+        QScrollArea#settingsScroll QScrollBar:vertical,
+        QScrollArea#settingsScroll QScrollBar:horizontal {
+            width: 0px;
+            height: 0px;
+            background: transparent;
         }
         QTabWidget::pane {
             border: none;
@@ -334,13 +370,18 @@ QString MainWindow::darkStyle() const
         }
         QWidget#sidebar {
             background: #151922;
-            border-right: 1px solid #242a36;
+            border: none;
         }
-        QLabel#brand {
+        QWidget#brand, QWidget#brand QLabel {
+            background: #151922;
+        }
+        QLabel#brandText {
             font-size: 22px;
             font-weight: 800;
-            padding: 26px 22px 18px 22px;
             color: #f5f7fb;
+        }
+        QLabel#brandIcon {
+            background: transparent;
         }
         QListWidget {
             border: none;
@@ -384,23 +425,25 @@ QString MainWindow::darkStyle() const
         QWidget#metricCard QLabel, QWidget#metricCard QWidget {
             background: transparent;
         }
-        QGroupBox {
+        QWidget#settingsContent {
+            background: transparent;
+        }
+        QWidget#settingsSection {
             background: #191e29;
             border: none;
             border-radius: 18px;
-            margin-top: 18px;
-            padding: 22px 20px 20px 20px;
-            font-weight: 700;
         }
-        QGroupBox QLabel, QGroupBox QWidget {
+        QWidget#settingsSection QLabel, QWidget#settingsSection QWidget {
             background: transparent;
         }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 16px;
-            padding: 0 8px;
+        QLabel#settingsSectionTitle {
             color: #f5f7fb;
-            background: #0f1117;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        QLabel#settingsFieldLabel {
+            color: #aab2c0;
+            font-weight: 600;
         }
         QPushButton {
             min-height: 36px;
@@ -438,7 +481,9 @@ QString MainWindow::darkStyle() const
             selection-background-color: #f5f7fb;
             selection-color: #111827;
         }
-        QGroupBox QLineEdit, QGroupBox QSpinBox, QGroupBox QComboBox {
+        QWidget#settingsSection QLineEdit,
+        QWidget#settingsSection QSpinBox,
+        QWidget#settingsSection QComboBox {
             background: #11151e;
         }
         QPlainTextEdit {
@@ -451,6 +496,14 @@ QString MainWindow::darkStyle() const
             padding: 18px;
             font-family: Menlo, Consolas, monospace;
             font-size: 12px;
+        }
+        QPlainTextEdit#logView QScrollBar:vertical,
+        QPlainTextEdit#logView QScrollBar:horizontal,
+        QScrollArea#settingsScroll QScrollBar:vertical,
+        QScrollArea#settingsScroll QScrollBar:horizontal {
+            width: 0px;
+            height: 0px;
+            background: transparent;
         }
         QTabWidget::pane {
             border: none;

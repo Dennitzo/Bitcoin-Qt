@@ -44,6 +44,8 @@ qt_add_executable(BitcoinNodeDesktop
     src/services/BitcoinCoreService.h
     src/services/ElectrsService.cpp
     src/services/ElectrsService.h
+    src/services/MempoolDatabaseService.cpp
+    src/services/MempoolDatabaseService.h
     src/services/MempoolService.cpp
     src/services/MempoolService.h
     src/services/PublicPoolService.cpp
@@ -79,6 +81,10 @@ target_compile_definitions(BitcoinNodeDesktop PRIVATE
     APP_VERSION="${PROJECT_VERSION}"
 )
 
+set_target_properties(BitcoinNodeDesktop PROPERTIES
+    QT_QML_MODULE_NO_IMPORT_SCAN TRUE
+)
+
 if(APPLE)
     set_source_files_properties(resources/Bitcoin.icns PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources"
@@ -94,9 +100,7 @@ if(APPLE)
 
     add_custom_command(TARGET BitcoinNodeDesktop POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_SOURCE_DIR}/runtime"
-            "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources/runtime"
+        COMMAND /usr/bin/rsync -a --delete "${CMAKE_SOURCE_DIR}/runtime/" "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources/runtime/"
         COMMENT "Copying owned service runtime into app bundle"
     )
 endif()

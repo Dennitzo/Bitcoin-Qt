@@ -45,6 +45,7 @@ QStringList BitcoinCoreService::arguments() const
         "-rpcallowip=127.0.0.1",
         "-rpcthreads=8",
         "-rpcworkqueue=128",
+        "-whitelist=download,noban,mempool,relay@127.0.0.1",
         QString("-rpcuser=%1").arg(config().rpcUser()),
         QString("-rpcpassword=%1").arg(config().rpcPassword()),
         QString("-rpcport=%1").arg(config().bitcoinRpcPort()),

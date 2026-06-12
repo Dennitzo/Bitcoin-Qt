@@ -22,6 +22,7 @@ Q_SIGNALS:
     void frontendAvailable(const QUrl& url);
 
 private:
+    void waitForDatabase();
     void waitForElectrs();
     void startBackend();
     void startFrontend();
@@ -33,6 +34,7 @@ private:
 
     QProcess m_backend;
     QProcess m_frontend;
+    QTimer m_databaseHealth;
     QTimer m_electrsHealth;
     QTimer m_backendHealth;
     QTimer m_frontendHealth;

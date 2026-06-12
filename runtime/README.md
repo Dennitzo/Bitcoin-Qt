@@ -18,6 +18,11 @@ runtime/
     bin/
       node
       npm
+  mariadb/
+    bin/
+      mariadbd
+    scripts/
+      mariadb-install-db
   mempool/
     backend/
     frontend/
@@ -33,6 +38,7 @@ large mutable node data on an internal or external disk:
 <selected-disk>/
   bitcoin/
   electrs/
+  mempool-db/
   mempool/
   public-pool/
   logs/
@@ -50,6 +56,7 @@ Individual services can be built with:
 ./scripts/build-bitcoin-core.sh
 ./scripts/build-electrs.sh
 ./scripts/build-node-runtime.sh
+./scripts/build-mariadb-runtime-macos.sh
 ./scripts/build-mempool.sh
 ./scripts/build-public-pool.sh
 ```
