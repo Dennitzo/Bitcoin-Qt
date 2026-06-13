@@ -42,7 +42,14 @@ case "$(uname -s)" in
     if ! command -v ninja >/dev/null 2>&1; then
       brew install ninja
     fi
-    python3 -m pip install --user --break-system-packages setuptools
+    PYTHON_VENV="$HOME/.bitcoinqt-ci-python"
+    python3 -m venv "$PYTHON_VENV"
+    "$PYTHON_VENV/bin/python" -m pip install --upgrade pip setuptools
+    if [[ -n "${GITHUB_PATH:-}" ]]; then
+      echo "$PYTHON_VENV/bin" >> "$GITHUB_PATH"
+    else
+      export PATH="$PYTHON_VENV/bin:$PATH"
+    fi
     ;;
   MINGW*|MSYS*|CYGWIN*)
     choco install make pkgconfiglite rust -y --no-progress
