@@ -32,6 +32,10 @@ export LANG=C
 export LC_ALL=C
 export LC_CTYPE=C
 
+if [[ -x "$HOME/.bitcoinqt-ci-python/bin/python3" ]]; then
+  export PATH="$HOME/.bitcoinqt-ci-python/bin:$PATH"
+fi
+
 for tool in pkg-config make; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "Missing build tool: $tool" >&2
@@ -39,6 +43,12 @@ for tool in pkg-config make; do
     exit 1
   fi
 done
+
+if ! python3 -c 'import setuptools' >/dev/null 2>&1; then
+  echo "Python setuptools not found for $(command -v python3)" >&2
+  echo "Install setuptools before building the Bitcoin Core runtime." >&2
+  exit 1
+fi
 
 make -C depends -j"$JOBS" HOST="$HOST" NO_QT=1 NO_WALLET=1 NO_SQLITE=1 NO_ZMQ=1 NO_UPNP=1 NO_NATPMP=1 NO_USDT=1
 
