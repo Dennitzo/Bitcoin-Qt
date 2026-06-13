@@ -9,6 +9,7 @@ case "$(uname -s)" in
       cmake \
       ninja-build \
       patchelf \
+      libcups2-dev \
       libegl1 \
       libgl1 \
       libxkbcommon-x11-0 \
@@ -20,7 +21,8 @@ case "$(uname -s)" in
       libxcb-render-util0 \
       libxcb-shape0 \
       libxcb-xinerama0 \
-      libxcb-xfixes0
+      libxcb-xfixes0 \
+      vulkan-headers
     ;;
   Darwin)
     if ! command -v cmake >/dev/null 2>&1; then

@@ -13,9 +13,6 @@ defaults:
 
 env:
   BUILD_TYPE: Release
-  # Qt 6.8 moved WebEngine into extensions, which currently breaks aqt-based
-  # Linux installs in install-qt-action. Qt 6.7.x still supports Linux ARM64.
-  QT_VERSION: "6.7.3"
 
 jobs:
   build:
@@ -27,36 +24,29 @@ jobs:
         include:
           - label: macOS x64
             runner: macos-13
+            qt-version: "6.7.3"
             qt-host: mac
             qt-arch: clang_64
             artifact: bitcoin-qt-macos-x64
           - label: macOS ARM64
             runner: macos-14
+            qt-version: "6.7.3"
             qt-host: mac
             qt-arch: clang_64
             artifact: bitcoin-qt-macos-arm64
           - label: Linux x64
             runner: ubuntu-24.04
+            qt-version: "6.7.3"
             qt-host: linux
-            qt-arch: gcc_64
+            qt-arch: linux_gcc_64
             artifact: bitcoin-qt-linux-x64
-          - label: Linux ARM64
-            runner: ubuntu-24.04-arm
-            qt-host: linux_arm64
-            qt-arch: linux_gcc_arm64
-            artifact: bitcoin-qt-linux-arm64
           - label: Windows x64
             runner: windows-2022
+            qt-version: "6.7.3"
             qt-host: windows
-            qt-arch: win64_msvc2022_64
+            qt-arch: win64_msvc2019_64
             msvc-arch: x64
             artifact: bitcoin-qt-windows-x64
-          - label: Windows ARM64
-            runner: windows-11-arm
-            qt-host: windows_arm64
-            qt-arch: win64_msvc2022_arm64
-            msvc-arch: arm64
-            artifact: bitcoin-qt-windows-arm64
 
     steps:
       - name: Check out repository
@@ -74,7 +64,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: ${{ env.QT_VERSION }}
+          version: ${{ matrix.qt-version }}
           host: ${{ matrix.qt-host }}
           target: desktop
           arch: ${{ matrix.qt-arch }}
