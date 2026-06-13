@@ -2,12 +2,14 @@
 
 #include "../core/Localization.h"
 
+#include <QApplication>
 #include <QCloseEvent>
 #include <QHBoxLayout>
 #include <QDebug>
 #include <QLabel>
 #include <QListWidgetItem>
 #include <QMessageBox>
+#include <QPalette>
 #include <QPixmap>
 #include <QPushButton>
 #include <QStatusBar>
@@ -18,6 +20,18 @@
 #include <QWebEngineScriptCollection>
 
 namespace {
+
+bool effectiveDarkTheme(const QString& theme)
+{
+    const QString normalized = theme.toLower();
+    if (normalized == "dark") {
+        return true;
+    }
+    if (normalized == "light") {
+        return false;
+    }
+    return QApplication::palette().color(QPalette::Window).lightness() < 128;
+}
 
 class EmbeddedWebPage final : public QWebEnginePage {
 public:
@@ -110,12 +124,9 @@ void MainWindow::buildUi()
     m_settingsButton = new QPushButton(sidebarFrame);
     m_settingsButton->setObjectName("sidebarNavButton");
     m_settingsButton->setCheckable(true);
-    m_quitButton = new QPushButton(sidebarFrame);
-    m_quitButton->setObjectName("sidebarQuitButton");
     sidebarLayout->addWidget(brand);
     sidebarLayout->addWidget(m_sidebar, 1);
     sidebarLayout->addWidget(m_settingsButton);
-    sidebarLayout->addWidget(m_quitButton);
 
     m_pages = new QStackedWidget(central);
     m_dashboard = new DashboardPage(m_config, m_pages);
@@ -146,13 +157,6 @@ void MainWindow::buildUi()
         m_sidebar->setCurrentRow(-1);
         m_pages->setCurrentWidget(m_settings);
         m_settingsButton->setChecked(true);
-    });
-    QObject::connect(m_quitButton, &QPushButton::clicked, this, [this]() {
-        if (m_quitButton) {
-            m_quitButton->setEnabled(false);
-        }
-        m_services.stopAll();
-        close();
     });
     retranslate();
 }
@@ -232,7 +236,8 @@ void MainWindow::shutdownWebEngine()
 void MainWindow::applyStyle()
 {
     const QString theme = m_config.theme().toLower();
-    setStyleSheet(theme == "dark" ? darkStyle() : lightStyle());
+    const bool dark = effectiveDarkTheme(theme);
+    setStyleSheet(dark ? darkStyle() : lightStyle());
 }
 
 void MainWindow::retranslate()
@@ -246,9 +251,6 @@ void MainWindow::retranslate()
     }
     if (m_settingsButton) {
         m_settingsButton->setText(appText(lang, "app.settings"));
-    }
-    if (m_quitButton) {
-        m_quitButton->setText(appText(lang, "app.quit"));
     }
     updateSidebarAvailability();
 }
@@ -340,26 +342,6 @@ QString MainWindow::lightStyle() const
             background: #111827;
             color: #ffffff;
         }
-        QPushButton#sidebarQuitButton {
-            margin: 0 16px 18px 16px;
-            min-height: 42px;
-            text-align: left;
-            padding-left: 14px;
-            border: 1px solid #7f1d1d;
-            border-radius: 12px;
-            background: #8f1d1d;
-            color: #fff5f5;
-            font-weight: 800;
-        }
-        QPushButton#sidebarQuitButton:hover {
-            background: #a62525;
-            border-color: #991b1b;
-        }
-        QPushButton#sidebarQuitButton:disabled {
-            background: #5f1b1b;
-            border-color: #4b1717;
-            color: #d8a9a9;
-        }
         QWidget#metricCard {
             background: #ffffff;
             border: none;
@@ -372,12 +354,6 @@ QString MainWindow::lightStyle() const
             background: transparent;
             border: 1px solid #dde4ef;
             border-radius: 18px;
-        }
-        QWidget#dashboardGroup QLabel#dashboardGroupTitle {
-            color: #303746;
-            font-size: 15px;
-            font-weight: 800;
-            background: transparent;
         }
         QWidget#settingsContent {
             background: transparent;
@@ -495,7 +471,7 @@ QString MainWindow::lightStyle() const
             border: none;
         }
         QProgressBar {
-            border: none;
+            border: 1px solid #cfd7e3;
             border-radius: 6px;
             background: #e4e8f0;
         }
@@ -576,26 +552,6 @@ QString MainWindow::darkStyle() const
             background: #f5f7fb;
             color: #111827;
         }
-        QPushButton#sidebarQuitButton {
-            margin: 0 16px 18px 16px;
-            min-height: 42px;
-            text-align: left;
-            padding-left: 14px;
-            border: 1px solid #7f1d1d;
-            border-radius: 12px;
-            background: #7f1d1d;
-            color: #fff5f5;
-            font-weight: 800;
-        }
-        QPushButton#sidebarQuitButton:hover {
-            background: #991b1b;
-            border-color: #b91c1c;
-        }
-        QPushButton#sidebarQuitButton:disabled {
-            background: #451a1a;
-            border-color: #3f1717;
-            color: #b98d8d;
-        }
         QWidget#metricCard {
             background: #191e29;
             border: none;
@@ -608,12 +564,6 @@ QString MainWindow::darkStyle() const
             background: transparent;
             border: 1px solid #303746;
             border-radius: 18px;
-        }
-        QWidget#dashboardGroup QLabel#dashboardGroupTitle {
-            color: #ffffff;
-            font-size: 15px;
-            font-weight: 800;
-            background: transparent;
         }
         QWidget#settingsContent {
             background: transparent;
@@ -732,7 +682,7 @@ QString MainWindow::darkStyle() const
             border: none;
         }
         QProgressBar {
-            border: none;
+            border: 1px solid #4b5563;
             border-radius: 6px;
             background: #262d3a;
         }

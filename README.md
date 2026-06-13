@@ -30,8 +30,27 @@ the full node data should live outside the system disk.
 
 ## Build From Source
 
-A fresh checkout does not contain the app-owned service binaries. Build the
-runtime first, then configure and build the Qt application.
+A fresh checkout does not contain the app-owned service binaries. Qt is also a
+required build dependency. Install Qt first, build the runtime second, then
+configure and build the Qt application.
+
+Install Qt 6 with the required desktop modules:
+
+- **macOS:** install Qt with the Qt Online Installer or Maintenance Tool from
+  `https://www.qt.io/download-qt-installer`. Select a macOS Qt 6 kit and add
+  Qt WebEngine, Qt WebChannel, Qt Network, Qt Concurrent, and Qt Widgets. On
+  macOS 12, use Qt 6.8.x or 6.9.x instead of Qt 6.11+.
+- **Linux:** install Qt from your distribution or the Qt Online Installer. Make
+  sure the development packages for Widgets, Network, Concurrent, WebEngine,
+  and WebChannel are installed. Distribution package names vary, for example
+  `qt6-base-dev`, `qt6-webengine-dev`, and `qt6-webchannel-dev`.
+- **Windows:** install Qt with the Qt Online Installer. Select the MSVC or
+  MinGW desktop kit matching your compiler and include Qt WebEngine and
+  Qt WebChannel.
+
+After installing Qt, point CMake at the kit with `CMAKE_PREFIX_PATH`, for
+example `$HOME/Qt/6.8.3/macos` on macOS or `C:\Qt\6.8.3\msvc2022_64` on
+Windows.
 
 The normal source workflow is:
 

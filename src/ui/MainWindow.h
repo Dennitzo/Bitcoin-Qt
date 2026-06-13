@@ -52,7 +52,6 @@ protected:
     QListWidgetItem* m_mempoolItem = nullptr;
     QListWidgetItem* m_publicPoolItem = nullptr;
     QPushButton* m_settingsButton = nullptr;
-    QPushButton* m_quitButton = nullptr;
     QStackedWidget* m_pages = nullptr;
     DashboardPage* m_dashboard = nullptr;
     LogsPage* m_bitcoindLog = nullptr;

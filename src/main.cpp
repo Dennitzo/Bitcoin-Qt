@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
     QApplication::setApplicationName("Bitcoin-Qt");
     QApplication::setApplicationVersion(APP_VERSION);
     QApplication::setOrganizationName("Bitcoin-Qt");
-    QApplication::setWindowIcon(QIcon(":/icons/Bitcoin.png"));
+    QApplication::setWindowIcon(QIcon(":/icons/AppLogo.png"));
 
     qRegisterMetaType<BitcoinNodeStatus>("BitcoinNodeStatus");
     qRegisterMetaType<ServiceStatus>("ServiceStatus");
@@ -61,7 +61,10 @@ int main(int argc, char* argv[])
         QCoreApplication::processEvents(QEventLoop::AllEvents, 250);
     });
 
-    if (config.autostart()) {
+    if (config.autostart()
+        || config.serviceEnabled("electrs")
+        || config.serviceEnabled("mempool")
+        || config.serviceEnabled("public-pool")) {
         services.startConfiguredServices();
     }
 

@@ -86,16 +86,16 @@ set_target_properties(BitcoinNodeDesktop PROPERTIES
 )
 
 if(APPLE)
-    set_source_files_properties(resources/Bitcoin.icns PROPERTIES
+    set_source_files_properties(resources/AppLogo.icns PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources"
     )
-    target_sources(BitcoinNodeDesktop PRIVATE resources/Bitcoin.icns)
+    target_sources(BitcoinNodeDesktop PRIVATE resources/AppLogo.icns)
     set_target_properties(BitcoinNodeDesktop PROPERTIES
         MACOSX_BUNDLE TRUE
         OUTPUT_NAME "Bitcoin-Qt"
         MACOSX_BUNDLE_BUNDLE_NAME "Bitcoin-Qt"
         MACOSX_BUNDLE_GUI_IDENTIFIER "org.bitcoin.qt"
-        MACOSX_BUNDLE_ICON_FILE "Bitcoin.icns"
+        MACOSX_BUNDLE_ICON_FILE "AppLogo.icns"
     )
 
     add_custom_command(TARGET BitcoinNodeDesktop POST_BUILD

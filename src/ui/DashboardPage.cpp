@@ -35,18 +35,13 @@ QWidget* createCard(QWidget* content, QWidget* parent, int height = 138)
     return card;
 }
 
-QWidget* createGroup(QLabel** titleTarget, QGridLayout** gridTarget, QWidget* parent)
+QWidget* createGroup(QGridLayout** gridTarget, QWidget* parent)
 {
     auto* group = new QWidget(parent);
     group->setObjectName("dashboardGroup");
     auto* layout = new QVBoxLayout(group);
-    layout->setContentsMargins(18, 16, 18, 18);
-    layout->setSpacing(14);
-
-    auto* title = new QLabel(group);
-    title->setObjectName("dashboardGroupTitle");
-    *titleTarget = title;
-    layout->addWidget(title);
+    layout->setContentsMargins(18, 18, 18, 18);
+    layout->setSpacing(0);
 
     auto* grid = new QGridLayout();
     grid->setHorizontalSpacing(18);
@@ -81,7 +76,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     title->setObjectName("pageTitle");
     root->addWidget(title);
 
-    auto* statisticsGroup = createGroup(&m_statisticsTitle, &m_metricsGrid, this);
+    auto* statisticsGroup = createGroup(&m_metricsGrid, this);
 
     m_blockHeight = createMetricLabel(text("dashboard.blockHeight"), "0", this);
     m_sync = createMetricLabel(text("dashboard.sync"), "0.00 %", this);
@@ -123,7 +118,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     };
     root->addWidget(statisticsGroup);
 
-    auto* servicesGroup = createGroup(&m_servicesTitle, &m_servicesGrid, this);
+    auto* servicesGroup = createGroup(&m_servicesGrid, this);
     const QList<QPair<QString, QLabel*>> services{
         {"bitcoind", m_bitcoin},
         {"electrs", m_electrs},
@@ -250,18 +245,8 @@ QString DashboardPage::stateText(ServiceState state) const
 
 void DashboardPage::retranslate()
 {
-    const QString groupTitleStyle = QString("color:%1;font-size:15px;font-weight:800;background:transparent;")
-        .arg(m_config.theme().toLower() == "dark" ? "#ffffff" : "#303746");
     if (m_title) {
         m_title->setText(text("dashboard.title"));
-    }
-    if (m_statisticsTitle) {
-        m_statisticsTitle->setText(text("dashboard.statistics"));
-        m_statisticsTitle->setStyleSheet(groupTitleStyle);
-    }
-    if (m_servicesTitle) {
-        m_servicesTitle->setText(text("dashboard.services"));
-        m_servicesTitle->setStyleSheet(groupTitleStyle);
     }
     for (auto* button : m_startButtons) {
         button->setText(text("app.start"));

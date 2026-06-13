@@ -11,11 +11,8 @@ inline QString appText(const QString& language, const QString& key)
     if (key == "app.stop") return english ? "Stop" : "Stop";
     if (key == "app.save") return english ? "Save" : "Speichern";
     if (key == "app.select") return english ? "Select" : "Auswählen";
-    if (key == "app.quit") return english ? "Quit" : "Beenden";
 
     if (key == "dashboard.title") return "Dashboard";
-    if (key == "dashboard.statistics") return english ? "Statistics" : "Statistiken";
-    if (key == "dashboard.services") return english ? "Services" : "Dienste";
     if (key == "dashboard.blockHeight") return english ? "Block height" : "Blockhöhe";
     if (key == "dashboard.sync") return "Sync";
     if (key == "dashboard.storage") return english ? "Storage" : "Speicher";

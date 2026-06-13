@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/icons">
         <file alias="Bitcoin.png">../Bitcoin.png</file>
+        <file alias="AppLogo.png">../AppLogo.png</file>
     </qresource>
 </RCC>

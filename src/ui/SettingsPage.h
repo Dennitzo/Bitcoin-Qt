@@ -44,7 +44,6 @@ private:
     QLabel* m_publicPoolApiPortLabel = nullptr;
     QLabel* m_publicPoolStratumPortLabel = nullptr;
     QLabel* m_publicPoolFrontendPortLabel = nullptr;
-    QLabel* m_publicPoolAddressLabel = nullptr;
     QLabel* m_themeLabel = nullptr;
     QLabel* m_languageLabel = nullptr;
     QLabel* m_autostartLabel = nullptr;
@@ -62,7 +61,6 @@ private:
     QLineEdit* m_publicPoolApiPort = nullptr;
     QLineEdit* m_publicPoolStratumPort = nullptr;
     QLineEdit* m_publicPoolFrontendPort = nullptr;
-    QLineEdit* m_publicPoolAddress = nullptr;
     QComboBox* m_theme = nullptr;
     QComboBox* m_language = nullptr;
     QCheckBox* m_autostart = nullptr;

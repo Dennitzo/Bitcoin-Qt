@@ -20,7 +20,7 @@ QLineEdit* portEdit(quint16 value, QWidget* parent)
 {
     auto* edit = new QLineEdit(QString::number(value), parent);
     edit->setValidator(new QIntValidator(1, 65535, edit));
-    edit->setMaximumWidth(180);
+    edit->setFixedWidth(240);
     edit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     return edit;
 }
@@ -35,7 +35,7 @@ QLabel* fieldLabel(const QString& text, QWidget* parent)
 
 void prepareField(QWidget* field)
 {
-    field->setMaximumWidth(360);
+    field->setFixedWidth(240);
     field->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 }
 
@@ -162,8 +162,6 @@ void SettingsPage::buildUi()
     m_publicPoolApiPort = portEdit(m_config.publicPoolApiPort(), this);
     m_publicPoolStratumPort = portEdit(m_config.publicPoolStratumPort(), this);
     m_publicPoolFrontendPort = portEdit(m_config.publicPoolFrontendPort(), this);
-    m_publicPoolAddress = new QLineEdit(m_config.publicPoolPayoutAddress(), this);
-    prepareField(m_publicPoolAddress);
     addRow(serviceForm, &m_electrsPortLabel, m_electrsPort);
     addRow(serviceForm, &m_mempoolDatabasePortLabel, m_mempoolDatabasePort);
     addRow(serviceForm, &m_mempoolBackendPortLabel, m_mempoolBackendPort);
@@ -171,7 +169,6 @@ void SettingsPage::buildUi()
     addRow(serviceForm, &m_publicPoolApiPortLabel, m_publicPoolApiPort);
     addRow(serviceForm, &m_publicPoolStratumPortLabel, m_publicPoolStratumPort);
     addRow(serviceForm, &m_publicPoolFrontendPortLabel, m_publicPoolFrontendPort);
-    addRow(serviceForm, &m_publicPoolAddressLabel, m_publicPoolAddress);
 
     auto* appForm = createSection(&m_appTitle);
     m_theme = new QComboBox(this);
@@ -246,7 +243,6 @@ void SettingsPage::save()
     m_config.setUIntValue("publicPool/apiPort", portValue(m_publicPoolApiPort));
     m_config.setUIntValue("publicPool/stratumPort", portValue(m_publicPoolStratumPort));
     m_config.setUIntValue("publicPool/frontendPort", portValue(m_publicPoolFrontendPort));
-    m_config.setStringValue("publicPool/payoutAddress", m_publicPoolAddress->text().trimmed());
     m_config.setStringValue("app/theme", m_theme->currentText());
     m_config.setStringValue("app/language", m_language->currentText());
     m_config.setBoolValue("app/autostart", m_autostart->isChecked());
@@ -296,7 +292,6 @@ void SettingsPage::retranslate()
     if (m_publicPoolApiPortLabel) m_publicPoolApiPortLabel->setText("Public Pool API Port");
     if (m_publicPoolStratumPortLabel) m_publicPoolStratumPortLabel->setText("Public Pool Stratum Port");
     if (m_publicPoolFrontendPortLabel) m_publicPoolFrontendPortLabel->setText("Public Pool Web Port");
-    if (m_publicPoolAddressLabel) m_publicPoolAddressLabel->setText(appText(lang, "settings.publicPoolAddress"));
     if (m_themeLabel) m_themeLabel->setText(appText(lang, "settings.theme"));
     if (m_languageLabel) m_languageLabel->setText(appText(lang, "settings.language"));
     if (m_autostartLabel) m_autostartLabel->setText(appText(lang, "settings.autostart"));

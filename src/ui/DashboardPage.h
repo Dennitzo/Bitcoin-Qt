@@ -37,8 +37,6 @@ private:
     BitcoinNodeStatus m_lastBitcoinStatus;
     QMap<QString, ServiceStatus> m_serviceStatuses;
     QLabel* m_title = nullptr;
-    QLabel* m_statisticsTitle = nullptr;
-    QLabel* m_servicesTitle = nullptr;
     QLabel* m_blockHeight = nullptr;
     QLabel* m_sync = nullptr;
     QLabel* m_storage = nullptr;

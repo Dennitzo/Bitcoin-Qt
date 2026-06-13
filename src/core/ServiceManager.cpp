@@ -49,6 +49,22 @@ void ServiceManager::startConfiguredServices()
         && m_bitcoin.state() == ServiceState::Stopped) {
         m_bitcoin.start();
     }
+    if (m_config.serviceEnabled("electrs")) {
+        if (!bitcoinIsSynced()) {
+            m_electrs.markWaiting("Warte auf Bitcoin Core Sync");
+        }
+    }
+    if (m_config.serviceEnabled("mempool")) {
+        if (!bitcoinIsSynced()) {
+            m_electrs.markWaiting("Warte auf Bitcoin Core Sync");
+            m_mempool.markWaiting("Warte auf Bitcoin Core Sync");
+        }
+    }
+    if (m_config.serviceEnabled("public-pool")) {
+        if (!bitcoinIsSynced()) {
+            m_publicPool.markWaiting("Warte auf Bitcoin Core Sync");
+        }
+    }
     if (bitcoinIsSynced() && m_config.serviceEnabled("electrs")) {
         m_electrs.start();
     }
