@@ -34,6 +34,14 @@ case "$(uname -s)" in
       libxcb-xinerama0 \
       libxcb-xfixes0 \
       libvulkan-dev
+    PYTHON_VENV="$HOME/.bitcoinqt-ci-python"
+    python3 -m venv "$PYTHON_VENV"
+    "$PYTHON_VENV/bin/python" -m pip install --upgrade pip setuptools
+    if [[ -n "${GITHUB_PATH:-}" ]]; then
+      echo "$PYTHON_VENV/bin" >> "$GITHUB_PATH"
+    else
+      export PATH="$PYTHON_VENV/bin:$PATH"
+    fi
     ;;
   Darwin)
     if ! command -v cmake >/dev/null 2>&1; then
