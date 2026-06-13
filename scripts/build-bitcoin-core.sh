@@ -10,6 +10,67 @@ HOST="${BITCOIN_CORE_HOST:-$(clang -dumpmachine)}"
 
 mkdir -p "$BUILD_DIR" "$PREFIX"
 
+stage_binary_archive() {
+  local version="$1"
+  local archive="$2"
+  local url="$3"
+  local bin_suffix="${4:-}"
+  local download_dir="$ROOT_DIR/build/runtime-downloads"
+  local extract_dir="$BUILD_DIR/bitcoin-${version}-binary"
+  local archive_path="$download_dir/$archive"
+
+  mkdir -p "$download_dir"
+  if [[ ! -f "$archive_path" ]]; then
+    curl -L "$url" -o "$archive_path"
+  fi
+
+  rm -rf "$extract_dir" "$PREFIX"
+  mkdir -p "$extract_dir" "$PREFIX/bin"
+
+  case "$archive" in
+    *.zip)
+      7z x "$archive_path" "-o$extract_dir" >/dev/null
+      ;;
+    *.tar.gz)
+      tar -xzf "$archive_path" -C "$extract_dir"
+      ;;
+    *)
+      echo "Unsupported Bitcoin Core archive format: $archive" >&2
+      exit 1
+      ;;
+  esac
+
+  cp "$extract_dir/bitcoin-${version}/bin/bitcoind${bin_suffix}" "$PREFIX/bin/bitcoind${bin_suffix}"
+  cp "$extract_dir/bitcoin-${version}/bin/bitcoin-cli${bin_suffix}" "$PREFIX/bin/bitcoin-cli${bin_suffix}"
+
+  test -f "$PREFIX/bin/bitcoind${bin_suffix}"
+  "$PREFIX/bin/bitcoind${bin_suffix}" --version | head -1
+}
+
+case "$(uname -s):$(uname -m)" in
+  Darwin:arm64)
+    VERSION="${REF#v}"
+    ARCHIVE="bitcoin-${VERSION}-arm64-apple-darwin.tar.gz"
+    URL="https://bitcoincore.org/bin/bitcoin-core-${VERSION}/${ARCHIVE}"
+    stage_binary_archive "$VERSION" "$ARCHIVE" "$URL"
+    exit 0
+    ;;
+  Linux:x86_64)
+    VERSION="${REF#v}"
+    ARCHIVE="bitcoin-${VERSION}-x86_64-linux-gnu.tar.gz"
+    URL="https://bitcoincore.org/bin/bitcoin-core-${VERSION}/${ARCHIVE}"
+    stage_binary_archive "$VERSION" "$ARCHIVE" "$URL"
+    exit 0
+    ;;
+  MINGW*:x86_64|MSYS*:x86_64|CYGWIN*:x86_64)
+    VERSION="${REF#v}"
+    ARCHIVE="bitcoin-${VERSION}-win64.zip"
+    URL="https://bitcoincore.org/bin/bitcoin-core-${VERSION}/${ARCHIVE}"
+    stage_binary_archive "$VERSION" "$ARCHIVE" "$URL" ".exe"
+    exit 0
+    ;;
+esac
+
 if [[ ! -d "$BUILD_DIR/bitcoin/.git" ]]; then
   git clone https://github.com/bitcoin/bitcoin.git "$BUILD_DIR/bitcoin"
 fi
