@@ -168,6 +168,7 @@ void MainWindow::connectSignals()
         updateSidebarAvailability();
     });
     QObject::connect(&m_services, &ServiceManager::serviceStatusChanged, m_dashboard, &DashboardPage::updateServiceStatus);
+    QObject::connect(&m_services, &ServiceManager::publicPoolStatsChanged, m_dashboard, &DashboardPage::updatePublicPoolStats);
     QObject::connect(m_dashboard, &DashboardPage::startServiceRequested, &m_services, &ServiceManager::startService);
     QObject::connect(m_dashboard, &DashboardPage::stopServiceRequested, &m_services, &ServiceManager::stopService);
     QObject::connect(&m_logs, &LogManager::lineAppended, m_bitcoindLog, &LogsPage::appendLogLine);

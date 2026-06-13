@@ -25,6 +25,7 @@ ServiceManager::ServiceManager(ConfigManager& config, LogManager& logs, QObject*
     });
     QObject::connect(&m_mempool, &MempoolService::frontendAvailable, this, &ServiceManager::mempoolFrontendAvailable);
     QObject::connect(&m_publicPool, &PublicPoolService::frontendAvailable, this, &ServiceManager::publicPoolFrontendAvailable);
+    QObject::connect(&m_publicPool, &PublicPoolService::statsChanged, this, &ServiceManager::publicPoolStatsChanged);
 }
 
 void ServiceManager::startAll()

@@ -36,6 +36,7 @@ Q_SIGNALS:
     void bitcoinStatusChanged(const BitcoinNodeStatus& status);
     void mempoolFrontendAvailable(const QUrl& url);
     void publicPoolFrontendAvailable(const QUrl& url);
+    void publicPoolStatsChanged(const PublicPoolStats& stats);
     void errorRaised(const QString& title, const QString& message);
 
 private:

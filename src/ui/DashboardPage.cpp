@@ -10,6 +10,8 @@
 #include <QStorageInfo>
 #include <QVBoxLayout>
 
+#include <cmath>
+
 namespace {
 
 QLabel* createMetricLabel(const QString& title, const QString& value, QWidget* parent)
@@ -91,6 +93,11 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     m_storageProgress->setFixedHeight(8);
     m_peers = createMetricLabel("Peers", "0", this);
     m_network = createMetricLabel(text("dashboard.network"), "unknown", this);
+    m_publicPoolMinerHashrate = createMetricLabel(text("publicPool.minerHashrate"), "0 TH/s", this);
+    m_publicPoolNetworkHashrate = createMetricLabel(text("publicPool.networkHashrate"), "0 TH/s", this);
+    m_publicPoolBestShare = createMetricLabel(text("publicPool.bestShare"), "0", this);
+    m_publicPoolMinerUptime = createMetricLabel(text("publicPool.minerUptime"), "0m", this);
+    m_publicPoolBestSharePercent = createMetricLabel(text("publicPool.bestSharePercent"), "0 %", this);
     m_bitcoin = createMetricLabel("Bitcoin Core", text("state.stopped"), this);
     m_electrs = createMetricLabel("Electrs", text("state.stopped"), this);
     m_mempool = createMetricLabel("Mempool", text("dashboard.offline"), this);
@@ -117,6 +124,16 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
         createCard(m_network, this),
     };
     root->addWidget(statisticsGroup);
+
+    auto* publicPoolStatsGroup = createGroup(&m_publicPoolStatsGrid, this);
+    m_publicPoolStatCards = {
+        createCard(m_publicPoolMinerHashrate, this),
+        createCard(m_publicPoolNetworkHashrate, this),
+        createCard(m_publicPoolBestShare, this),
+        createCard(m_publicPoolMinerUptime, this),
+        createCard(m_publicPoolBestSharePercent, this),
+    };
+    root->addWidget(publicPoolStatsGroup);
 
     auto* servicesGroup = createGroup(&m_servicesGrid, this);
     const QList<QPair<QString, QLabel*>> services{
@@ -165,6 +182,10 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     m_metricsGrid->setColumnStretch(2, 2);
     m_metricsGrid->setColumnStretch(3, 1);
     m_metricsGrid->setColumnStretch(4, 1);
+    for (int i = 0; i < m_publicPoolStatCards.size(); ++i) {
+        m_publicPoolStatsGrid->addWidget(m_publicPoolStatCards.at(i), 0, i);
+        m_publicPoolStatsGrid->setColumnStretch(i, 1);
+    }
     for (int i = 0; i < m_serviceCards.size(); ++i) {
         m_servicesGrid->addWidget(m_serviceCards.at(i), 0, i);
     }
@@ -206,6 +227,25 @@ void DashboardPage::updateServiceStatus(const ServiceStatus& status)
     }
 }
 
+void DashboardPage::updatePublicPoolStats(const PublicPoolStats& stats)
+{
+    m_lastPublicPoolStats = stats;
+    if (!stats.online || stats.minerCount <= 0) {
+        m_publicPoolMinerHashrate->setText(metricHtml("publicPool.minerHashrate", "0 TH/s"));
+        m_publicPoolNetworkHashrate->setText(metricHtml("publicPool.networkHashrate", "0 TH/s"));
+        m_publicPoolBestShare->setText(metricHtml("publicPool.bestShare", "0"));
+        m_publicPoolMinerUptime->setText(metricHtml("publicPool.minerUptime", "0m"));
+        m_publicPoolBestSharePercent->setText(metricHtml("publicPool.bestSharePercent", "0 %"));
+        return;
+    }
+
+    m_publicPoolMinerHashrate->setText(metricHtml("publicPool.minerHashrate", formatHashrate(stats.minerHashrate)));
+    m_publicPoolNetworkHashrate->setText(metricHtml("publicPool.networkHashrate", formatHashrate(stats.networkHashrate)));
+    m_publicPoolBestShare->setText(metricHtml("publicPool.bestShare", formatBestShare(stats.bestShare)));
+    m_publicPoolMinerUptime->setText(metricHtml("publicPool.minerUptime", formatUptime(stats.minerUptimeSeconds)));
+    m_publicPoolBestSharePercent->setText(metricHtml("publicPool.bestSharePercent", formatBestSharePercent(stats.bestShare, stats.networkDifficulty)));
+}
+
 QString DashboardPage::language() const
 {
     return m_config.language();
@@ -243,6 +283,70 @@ QString DashboardPage::stateText(ServiceState state) const
     return text("state.unknown");
 }
 
+QString DashboardPage::formatHashrate(double hashesPerSecond) const
+{
+    if (hashesPerSecond <= 0.0 || !std::isfinite(hashesPerSecond)) {
+        return "0 TH/s";
+    }
+
+    static const QStringList units{"H/s", "KH/s", "MH/s", "GH/s", "TH/s", "PH/s", "EH/s"};
+    int unitIndex = 0;
+    double value = hashesPerSecond;
+    while (value >= 1000.0 && unitIndex < units.size() - 1) {
+        value /= 1000.0;
+        ++unitIndex;
+    }
+    const int decimals = value >= 100.0 ? 0 : (value >= 10.0 ? 1 : 2);
+    return QString("%1 %2").arg(value, 0, 'f', decimals).arg(units.at(unitIndex));
+}
+
+QString DashboardPage::formatBestShare(double bestShare) const
+{
+    if (bestShare <= 0.0 || !std::isfinite(bestShare)) {
+        return "0";
+    }
+    if (bestShare >= 1000000.0) {
+        return QString("%1M").arg(bestShare / 1000000.0, 0, 'f', 2);
+    }
+    if (bestShare >= 1000.0) {
+        return QString("%1K").arg(bestShare / 1000.0, 0, 'f', 2);
+    }
+    return QString::number(bestShare, 'f', bestShare >= 100.0 ? 0 : 2);
+}
+
+QString DashboardPage::formatBestSharePercent(double bestShare, double networkDifficulty) const
+{
+    if (bestShare <= 0.0 || networkDifficulty <= 0.0 || !std::isfinite(bestShare) || !std::isfinite(networkDifficulty)) {
+        return "0 %";
+    }
+
+    const double percent = (bestShare / networkDifficulty) * 100.0;
+    if (percent >= 1.0) {
+        return QString("%1 %").arg(percent, 0, 'f', 2);
+    }
+    if (percent >= 0.01) {
+        return QString("%1 %").arg(percent, 0, 'f', 4);
+    }
+    return QString("%1 %").arg(percent, 0, 'e', 2);
+}
+
+QString DashboardPage::formatUptime(qint64 seconds) const
+{
+    if (seconds <= 0) {
+        return "0m";
+    }
+    const qint64 days = seconds / 86400;
+    const qint64 hours = (seconds % 86400) / 3600;
+    const qint64 minutes = (seconds % 3600) / 60;
+    if (days > 0) {
+        return QString("%1d %2h").arg(days).arg(hours);
+    }
+    if (hours > 0) {
+        return QString("%1h %2m").arg(hours).arg(minutes);
+    }
+    return QString("%1m").arg(minutes);
+}
+
 void DashboardPage::retranslate()
 {
     if (m_title) {
@@ -255,6 +359,7 @@ void DashboardPage::retranslate()
         button->setText(text("app.stop"));
     }
     updateBitcoinStatus(m_lastBitcoinStatus);
+    updatePublicPoolStats(m_lastPublicPoolStats);
     const QList<ServiceStatus> statuses = m_serviceStatuses.values();
     for (const ServiceStatus& status : statuses) {
         updateServiceStatus(status);

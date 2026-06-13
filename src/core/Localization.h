@@ -21,6 +21,11 @@ inline QString appText(const QString& language, const QString& key)
     if (key == "dashboard.peers") return "Peers";
     if (key == "dashboard.network") return english ? "Network" : "Netzwerk";
     if (key == "dashboard.offline") return "Offline";
+    if (key == "publicPool.minerHashrate") return english ? "Miner hashrate" : "Hashrate Miner";
+    if (key == "publicPool.networkHashrate") return english ? "Network hashrate" : "Hashrate Netzwerk";
+    if (key == "publicPool.bestShare") return english ? "Best share miner" : "Best Share Miner";
+    if (key == "publicPool.minerUptime") return english ? "Miner uptime" : "Uptime Miner";
+    if (key == "publicPool.bestSharePercent") return english ? "Best share / difficulty" : "Best Share / Difficulty";
 
     if (key == "state.stopped") return english ? "Stopped" : "Gestoppt";
     if (key == "state.starting") return english ? "Starting" : "Startet";

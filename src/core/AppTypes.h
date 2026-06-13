@@ -37,6 +37,17 @@ struct ServiceStatus {
     QDateTime updatedAt = QDateTime::currentDateTimeUtc();
 };
 
+struct PublicPoolStats {
+    double minerHashrate = 0.0;
+    double networkHashrate = 0.0;
+    double bestShare = 0.0;
+    double networkDifficulty = 0.0;
+    qint64 minerUptimeSeconds = 0;
+    int minerCount = 0;
+    bool online = false;
+};
+
 Q_DECLARE_METATYPE(BitcoinNodeStatus)
 Q_DECLARE_METATYPE(ServiceStatus)
 Q_DECLARE_METATYPE(ServiceState)
+Q_DECLARE_METATYPE(PublicPoolStats)

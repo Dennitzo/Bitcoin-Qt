@@ -41,6 +41,7 @@ int main(int argc, char* argv[])
     qRegisterMetaType<BitcoinNodeStatus>("BitcoinNodeStatus");
     qRegisterMetaType<ServiceStatus>("ServiceStatus");
     qRegisterMetaType<ServiceState>("ServiceState");
+    qRegisterMetaType<PublicPoolStats>("PublicPoolStats");
 
     ConfigManager config;
     LogManager logs;

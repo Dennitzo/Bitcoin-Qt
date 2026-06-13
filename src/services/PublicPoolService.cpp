@@ -4,9 +4,42 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDateTime>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcessEnvironment>
+
+#include <algorithm>
+
+namespace {
+
+double numberValue(const QJsonObject& object, const QString& key)
+{
+    const QJsonValue value = object.value(key);
+    if (value.isDouble()) {
+        return value.toDouble();
+    }
+    if (value.isString()) {
+        bool ok = false;
+        const double number = value.toString().toDouble(&ok);
+        return ok ? number : 0.0;
+    }
+    return 0.0;
+}
+
+QDateTime parseIsoDate(const QString& value)
+{
+    QDateTime date = QDateTime::fromString(value, Qt::ISODateWithMs);
+    if (!date.isValid()) {
+        date = QDateTime::fromString(value, Qt::ISODate);
+    }
+    return date.toUTC();
+}
+
+}
 
 PublicPoolService::PublicPoolService(ConfigManager& config, LogManager& logs, QObject* parent)
     : ManagedService("public-pool", "Public Pool", config, logs, parent)
@@ -15,8 +48,10 @@ PublicPoolService::PublicPoolService(ConfigManager& config, LogManager& logs, QO
     attachProcess(m_frontend, "public-pool-ui");
     m_backendHealth.setInterval(2500);
     m_frontendHealth.setInterval(2500);
+    m_statsTimer.setInterval(5000);
     QObject::connect(&m_backendHealth, &QTimer::timeout, this, &PublicPoolService::checkBackend);
     QObject::connect(&m_frontendHealth, &QTimer::timeout, this, &PublicPoolService::checkFrontend);
+    QObject::connect(&m_statsTimer, &QTimer::timeout, this, &PublicPoolService::refreshStats);
 }
 
 PublicPoolService::~PublicPoolService()
@@ -36,6 +71,8 @@ void PublicPoolService::stop()
     m_startRequested = false;
     m_backendHealth.stop();
     m_frontendHealth.stop();
+    m_statsTimer.stop();
+    m_statsRequestInFlight = false;
     for (QProcess* proc : {&m_frontend, &m_backend}) {
         if (proc->state() == QProcess::NotRunning) {
             continue;
@@ -47,6 +84,7 @@ void PublicPoolService::stop()
         }
     }
     setState(ServiceState::Stopped, "Gestoppt");
+    emitOfflineStats();
     endManualStop();
 }
 
@@ -152,7 +190,96 @@ void PublicPoolService::checkFrontend()
         setState(ServiceState::Running, "Stratum und UI erreichbar");
         Q_EMIT frontendAvailable(frontendUrl());
         Q_EMIT ready(id());
+        refreshStats();
+        m_statsTimer.start();
     });
+}
+
+void PublicPoolService::refreshStats()
+{
+    if (m_statsRequestInFlight) {
+        return;
+    }
+    if (!m_startRequested || m_backend.state() == QProcess::NotRunning) {
+        emitOfflineStats();
+        return;
+    }
+
+    m_statsRequestInFlight = true;
+    const auto apiUrl = [this](const QString& path) {
+        return QUrl(QString("http://127.0.0.1:%1/api/%2").arg(config().publicPoolApiPort()).arg(path));
+    };
+
+    auto* poolReply = m_network.get(QNetworkRequest(apiUrl("pool")));
+    QObject::connect(poolReply, &QNetworkReply::finished, this, [this, poolReply, apiUrl]() {
+        poolReply->deleteLater();
+        if (!m_startRequested || poolReply->error() != QNetworkReply::NoError) {
+            m_statsRequestInFlight = false;
+            emitOfflineStats();
+            return;
+        }
+
+        PublicPoolStats stats;
+        stats.online = true;
+        const QJsonObject pool = QJsonDocument::fromJson(poolReply->readAll()).object();
+        stats.minerHashrate = numberValue(pool, "totalHashRate");
+        stats.minerCount = pool.value("totalMiners").toInt();
+
+        auto* networkReply = m_network.get(QNetworkRequest(apiUrl("network")));
+        QObject::connect(networkReply, &QNetworkReply::finished, this, [this, networkReply, apiUrl, stats]() mutable {
+            networkReply->deleteLater();
+            if (!m_startRequested) {
+                m_statsRequestInFlight = false;
+                emitOfflineStats();
+                return;
+            }
+            if (networkReply->error() == QNetworkReply::NoError) {
+                const QJsonObject network = QJsonDocument::fromJson(networkReply->readAll()).object();
+                stats.networkHashrate = numberValue(network, "networkhashps");
+                stats.networkDifficulty = numberValue(network, "difficulty");
+            }
+
+            auto* infoReply = m_network.get(QNetworkRequest(apiUrl("info")));
+            QObject::connect(infoReply, &QNetworkReply::finished, this, [this, infoReply, stats]() mutable {
+                infoReply->deleteLater();
+                m_statsRequestInFlight = false;
+                if (!m_startRequested) {
+                    emitOfflineStats();
+                    return;
+                }
+                if (infoReply->error() == QNetworkReply::NoError) {
+                    const QJsonObject info = QJsonDocument::fromJson(infoReply->readAll()).object();
+                    const QJsonArray highScores = info.value("highScores").toArray();
+                    if (!highScores.isEmpty()) {
+                        stats.bestShare = numberValue(highScores.first().toObject(), "bestDifficulty");
+                    }
+                    if (stats.bestShare <= 0.0) {
+                        const QJsonArray userAgents = info.value("userAgents").toArray();
+                        for (const QJsonValue& value : userAgents) {
+                            stats.bestShare = std::max(stats.bestShare, numberValue(value.toObject(), "bestDifficulty"));
+                        }
+                    }
+                    const QDateTime startedAt = parseIsoDate(info.value("uptime").toString());
+                    if (stats.minerCount > 0 && startedAt.isValid()) {
+                        stats.minerUptimeSeconds = std::max<qint64>(0, startedAt.secsTo(QDateTime::currentDateTimeUtc()));
+                    }
+                }
+                if (stats.minerCount <= 0) {
+                    stats.minerHashrate = 0.0;
+                    stats.networkHashrate = 0.0;
+                    stats.bestShare = 0.0;
+                    stats.networkDifficulty = 0.0;
+                    stats.minerUptimeSeconds = 0;
+                }
+                Q_EMIT statsChanged(stats);
+            });
+        });
+    });
+}
+
+void PublicPoolService::emitOfflineStats()
+{
+    Q_EMIT statsChanged(PublicPoolStats{});
 }
 
 void PublicPoolService::attachProcess(QProcess& child, const QString& logId)
