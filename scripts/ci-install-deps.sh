@@ -22,7 +22,7 @@ case "$(uname -s)" in
       libxcb-shape0 \
       libxcb-xinerama0 \
       libxcb-xfixes0 \
-      vulkan-headers
+      libvulkan-dev
     ;;
   Darwin)
     if ! command -v cmake >/dev/null 2>&1; then
