@@ -75,8 +75,22 @@ for (const path of ['backend/package.json', 'frontend/package.json']) {
       .replaceAll('./node_modules/.bin/eslint', 'eslint')
       .replaceAll('./node_modules/.bin/jest', 'jest');
   }
+  if (path === 'frontend/package.json') {
+    packageJson.scripts['sync-assets'] = 'npm run copy-themes && node copy-resources.js';
+  }
   fs.writeFileSync(path, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
+
+fs.writeFileSync('frontend/copy-resources.js', `
+const fs = require('fs');
+const path = require('path');
+
+const source = path.resolve(__dirname, 'src/resources');
+const dest = path.resolve(__dirname, 'dist/mempool/browser/resources');
+fs.rmSync(dest, {recursive: true, force: true});
+fs.mkdirSync(path.dirname(dest), {recursive: true});
+fs.cpSync(source, dest, {recursive: true});
+`);
 JS
     ;;
 esac
