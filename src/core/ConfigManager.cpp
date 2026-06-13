@@ -280,6 +280,16 @@ void ConfigManager::setWebViewUrl(const QString& id, const QUrl& url)
     m_settings.setValue(QString("webviews/%1/url").arg(id), url.toString(QUrl::FullyEncoded));
 }
 
+QByteArray ConfigManager::windowGeometry() const
+{
+    return m_settings.value("app/windowGeometry").toByteArray();
+}
+
+void ConfigManager::setWindowGeometry(const QByteArray& geometry)
+{
+    m_settings.setValue("app/windowGeometry", geometry);
+}
+
 QString ConfigManager::serviceDir(const QString& name) const
 {
     const QString base = baseDataDir().isEmpty() ? defaultBaseDir() : baseDataDir();

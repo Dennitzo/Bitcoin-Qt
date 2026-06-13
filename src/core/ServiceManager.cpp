@@ -35,7 +35,9 @@ void ServiceManager::startAll()
         m_mempoolDatabase.start();
         m_mempool.start();
     }
-    m_publicPool.start();
+    if (bitcoinIsSynced()) {
+        m_publicPool.start();
+    }
 }
 
 void ServiceManager::startConfiguredServices()
@@ -43,7 +45,8 @@ void ServiceManager::startConfiguredServices()
     if (m_config.serviceEnabled("bitcoind")) {
         m_bitcoin.start();
     }
-    if ((m_config.serviceEnabled("electrs") || m_config.serviceEnabled("mempool")) && m_bitcoin.state() == ServiceState::Stopped) {
+    if ((m_config.serviceEnabled("electrs") || m_config.serviceEnabled("mempool") || m_config.serviceEnabled("public-pool"))
+        && m_bitcoin.state() == ServiceState::Stopped) {
         m_bitcoin.start();
     }
     if (bitcoinIsSynced() && m_config.serviceEnabled("electrs")) {
@@ -53,7 +56,7 @@ void ServiceManager::startConfiguredServices()
         m_mempoolDatabase.start();
         m_mempool.start();
     }
-    if (m_config.serviceEnabled("public-pool")) {
+    if (bitcoinIsSynced() && m_config.serviceEnabled("public-pool")) {
         m_publicPool.start();
     }
 }
@@ -107,6 +110,13 @@ void ServiceManager::startService(const QString& id)
         startService("mempool");
     } else if (id == "public-pool") {
         m_config.setServiceEnabled(id, true);
+        if (!bitcoinIsSynced()) {
+            if (m_bitcoin.state() == ServiceState::Stopped) {
+                m_bitcoin.start();
+            }
+            m_publicPool.markWaiting("Warte auf Bitcoin Core Sync");
+            return;
+        }
         m_publicPool.start();
     }
 }
@@ -146,6 +156,9 @@ void ServiceManager::startSyncedDependents()
     if (m_config.serviceEnabled("mempool")) {
         m_mempoolDatabase.start();
         m_mempool.start();
+    }
+    if (m_config.serviceEnabled("public-pool")) {
+        m_publicPool.start();
     }
 }
 

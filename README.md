@@ -22,13 +22,54 @@ the full node data should live outside the system disk.
 - First-run disk selection for running the full node from an external drive
 - Dashboard with Bitcoin Core sync progress, peer count, Mempool state, Public
   Pool state, and storage usage
-- Dedicated sidebar pages for Dashboard, Bitcoind logs, electrs logs, Mempool,
-  Public Pool, and Settings
+- Dedicated sidebar pages for Dashboard, Bitcoin Core logs, electrs logs,
+  Mempool, Public Pool, and Settings
 - Persisted WebView navigation for Mempool and Public Pool pages
 - Local-only service orchestration through `QProcess`
 - Qt WebChannel bridge for future native/web integration
 
-## Build
+## Build From Source
+
+A fresh checkout does not contain the app-owned service binaries. Build the
+runtime first, then configure and build the Qt application.
+
+The normal source workflow is:
+
+1. Build all runtime components:
+
+   ```bash
+   ./scripts/build-runtime.sh
+   ```
+
+2. Configure and build Bitcoin-Qt:
+
+   ```bash
+   cmake -S . -B build/Bitcoin-Qt \
+     -DCMAKE_BUILD_TYPE=Debug \
+     -DCMAKE_PREFIX_PATH="/path/to/Qt/6.x/<platform>"
+
+   cmake --build build/Bitcoin-Qt
+   ```
+
+3. Start the built app:
+
+   ```bash
+   # macOS
+   ./build/Bitcoin-Qt/Bitcoin-Qt.app/Contents/MacOS/Bitcoin-Qt
+
+   # Linux
+   ./build/Bitcoin-Qt/Bitcoin-Qt
+
+   # Windows
+   .\build\Bitcoin-Qt\Debug\Bitcoin-Qt.exe
+   ```
+
+`scripts/build-runtime.sh` downloads/builds the local runtime used by the app:
+Bitcoin Core, electrs, MariaDB, Node.js, Mempool, and Public Pool. The script
+needs network access and the platform build tools required by those upstream
+projects. Runtime output is written to `runtime/` and is ignored by git.
+
+## Qt Build Details
 
 Required Qt modules:
 
@@ -38,8 +79,7 @@ Required Qt modules:
 - Qt WebEngine
 - Qt WebChannel
 
-Configure and build with a Qt installation available through
-`CMAKE_PREFIX_PATH`:
+Configure with a Qt installation available through `CMAKE_PREFIX_PATH`:
 
 ```bash
 cmake -S . -B build/Bitcoin-Qt \
@@ -66,19 +106,6 @@ Example macOS command when CMake was installed as an app bundle:
 /Applications/CMake.app/Contents/bin/cmake --build build/Bitcoin-Qt
 ```
 
-Run the built app:
-
-```bash
-# macOS
-./build/Bitcoin-Qt/Bitcoin-Qt.app/Contents/MacOS/Bitcoin-Qt
-
-# Linux
-./build/Bitcoin-Qt/Bitcoin-Qt
-
-# Windows
-.\build\Bitcoin-Qt\Debug\Bitcoin-Qt.exe
-```
-
 ## Runtime
 
 The app owns its service runtime. It resolves binaries from `runtime/` during
@@ -101,7 +128,7 @@ runtime/
   public-pool/frontend/
 ```
 
-Build all runtime components:
+Run this before the CMake build on a fresh checkout:
 
 ```bash
 ./scripts/build-runtime.sh
@@ -164,12 +191,14 @@ The expected dependency order is:
 3. Start electrs.
 4. Start the Mempool database as an internal dependency of Mempool.
 5. Start Mempool backend and frontend after MariaDB and electrs are reachable.
-6. Start Public Pool after Bitcoin Core RPC is reachable.
+6. Start Public Pool after Bitcoin Core RPC is reachable and initial block
+   download is complete.
 
 Mempool uses the standard local Mempool backend, frontend, and MariaDB stack.
 Bitcoin-Qt does not provide public mempool fallbacks or Bitcoin Core API
 substitutes for Mempool while Bitcoin Core is still syncing; Electrs and
-Mempool wait until the local node is fully synced.
+Mempool wait until the local node is fully synced. Public Pool follows the same
+full-sync requirement.
 
 Mempool and Public Pool are loaded locally in embedded Qt WebEngine views. The
 app is designed to keep these pages inside Bitcoin-Qt instead of opening an

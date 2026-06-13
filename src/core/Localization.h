@@ -11,8 +11,11 @@ inline QString appText(const QString& language, const QString& key)
     if (key == "app.stop") return english ? "Stop" : "Stop";
     if (key == "app.save") return english ? "Save" : "Speichern";
     if (key == "app.select") return english ? "Select" : "Auswählen";
+    if (key == "app.quit") return english ? "Quit" : "Beenden";
 
     if (key == "dashboard.title") return "Dashboard";
+    if (key == "dashboard.statistics") return english ? "Statistics" : "Statistiken";
+    if (key == "dashboard.services") return english ? "Services" : "Dienste";
     if (key == "dashboard.blockHeight") return english ? "Block height" : "Blockhöhe";
     if (key == "dashboard.sync") return "Sync";
     if (key == "dashboard.storage") return english ? "Storage" : "Speicher";
@@ -46,7 +49,7 @@ inline QString appText(const QString& language, const QString& key)
     if (key == "settings.savedTitle") return english ? "Settings saved" : "Einstellungen gespeichert";
     if (key == "settings.savedText") return english ? "Please restart Bitcoin-Qt so all changes can take effect." : "Bitte starte Bitcoin-Qt neu, damit alle Änderungen übernommen werden.";
 
-    if (key == "logs.bitcoind") return english ? "Bitcoind Log" : "Bitcoind Log";
+    if (key == "logs.bitcoind") return english ? "Bitcoin Core Log" : "Bitcoin Core Log";
     if (key == "logs.electrs") return english ? "Electrs Log" : "Electrs Log";
     if (key == "web.mempoolWaiting") return english ? "Mempool will load once backend and frontend are ready." : "Mempool wird geladen, sobald Backend und Frontend bereit sind.";
     if (key == "web.publicPoolWaiting") return english ? "Public Pool will load once Stratum/API and UI are ready." : "Public Pool wird geladen, sobald Stratum/API und UI bereit sind.";

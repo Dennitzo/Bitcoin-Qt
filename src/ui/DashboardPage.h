@@ -8,6 +8,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QTimer>
+#include <QGridLayout>
 #include <QWidget>
 
 class DashboardPage final : public QWidget {
@@ -36,6 +37,8 @@ private:
     BitcoinNodeStatus m_lastBitcoinStatus;
     QMap<QString, ServiceStatus> m_serviceStatuses;
     QLabel* m_title = nullptr;
+    QLabel* m_statisticsTitle = nullptr;
+    QLabel* m_servicesTitle = nullptr;
     QLabel* m_blockHeight = nullptr;
     QLabel* m_sync = nullptr;
     QLabel* m_storage = nullptr;
@@ -48,6 +51,10 @@ private:
     QProgressBar* m_syncProgress = nullptr;
     QProgressBar* m_storageProgress = nullptr;
     QTimer m_storageTimer;
+    QGridLayout* m_metricsGrid = nullptr;
+    QGridLayout* m_servicesGrid = nullptr;
+    QList<QWidget*> m_metricCards;
+    QList<QWidget*> m_serviceCards;
     QMap<QString, QPushButton*> m_startButtons;
     QMap<QString, QPushButton*> m_stopButtons;
 };

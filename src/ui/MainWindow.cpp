@@ -2,6 +2,7 @@
 
 #include "../core/Localization.h"
 
+#include <QCloseEvent>
 #include <QHBoxLayout>
 #include <QDebug>
 #include <QLabel>
@@ -71,6 +72,9 @@ void MainWindow::buildUi()
     setWindowTitle("Bitcoin-Qt");
     resize(1320, 860);
     setMinimumSize(1040, 700);
+    if (!m_config.windowGeometry().isEmpty()) {
+        restoreGeometry(m_config.windowGeometry());
+    }
 
     auto* central = new QWidget(this);
     auto* root = new QHBoxLayout(central);
@@ -97,14 +101,21 @@ void MainWindow::buildUi()
     brandLayout->addWidget(brandIcon);
     brandLayout->addWidget(brandText, 1);
     m_sidebar = new QListWidget(sidebarFrame);
-    m_sidebar->addItems({"", "", "", "", ""});
+    m_dashboardItem = new QListWidgetItem(m_sidebar);
+    m_bitcoindItem = new QListWidgetItem(m_sidebar);
+    m_electrsItem = new QListWidgetItem(m_sidebar);
+    m_mempoolItem = new QListWidgetItem(m_sidebar);
+    m_publicPoolItem = new QListWidgetItem(m_sidebar);
     m_sidebar->setCurrentRow(0);
     m_settingsButton = new QPushButton(sidebarFrame);
     m_settingsButton->setObjectName("sidebarNavButton");
     m_settingsButton->setCheckable(true);
+    m_quitButton = new QPushButton(sidebarFrame);
+    m_quitButton->setObjectName("sidebarQuitButton");
     sidebarLayout->addWidget(brand);
     sidebarLayout->addWidget(m_sidebar, 1);
     sidebarLayout->addWidget(m_settingsButton);
+    sidebarLayout->addWidget(m_quitButton);
 
     m_pages = new QStackedWidget(central);
     m_dashboard = new DashboardPage(m_config, m_pages);
@@ -136,12 +147,22 @@ void MainWindow::buildUi()
         m_pages->setCurrentWidget(m_settings);
         m_settingsButton->setChecked(true);
     });
+    QObject::connect(m_quitButton, &QPushButton::clicked, this, [this]() {
+        if (m_quitButton) {
+            m_quitButton->setEnabled(false);
+        }
+        m_services.stopAll();
+        close();
+    });
     retranslate();
 }
 
 void MainWindow::connectSignals()
 {
     QObject::connect(&m_services, &ServiceManager::bitcoinStatusChanged, m_dashboard, &DashboardPage::updateBitcoinStatus);
+    QObject::connect(&m_services, &ServiceManager::bitcoinStatusChanged, this, [this](const BitcoinNodeStatus&) {
+        updateSidebarAvailability();
+    });
     QObject::connect(&m_services, &ServiceManager::serviceStatusChanged, m_dashboard, &DashboardPage::updateServiceStatus);
     QObject::connect(m_dashboard, &DashboardPage::startServiceRequested, &m_services, &ServiceManager::startService);
     QObject::connect(m_dashboard, &DashboardPage::stopServiceRequested, &m_services, &ServiceManager::stopService);
@@ -161,6 +182,7 @@ void MainWindow::connectSignals()
     for (const ServiceStatus& status : m_services.statuses()) {
         m_dashboard->updateServiceStatus(status);
     }
+    updateSidebarAvailability();
 }
 
 void MainWindow::configureWebEngine()
@@ -217,13 +239,42 @@ void MainWindow::retranslate()
 {
     const QString lang = m_config.language();
     setWindowTitle("Bitcoin-Qt");
-    const QStringList items = {"Dashboard", "Bitcoind", "Electrs", "Mempool", "Public Pool"};
-    for (int i = 0; i < items.size() && i < m_sidebar->count(); ++i) {
-        m_sidebar->item(i)->setText(items.at(i));
+    const QStringList items = {"Dashboard", "Bitcoin Core", "Electrs", "Mempool", "Public Pool"};
+    const QList<QListWidgetItem*> sidebarItems{m_dashboardItem, m_bitcoindItem, m_electrsItem, m_mempoolItem, m_publicPoolItem};
+    for (int i = 0; i < items.size() && i < sidebarItems.size(); ++i) {
+        sidebarItems.at(i)->setText(items.at(i));
     }
     if (m_settingsButton) {
         m_settingsButton->setText(appText(lang, "app.settings"));
     }
+    if (m_quitButton) {
+        m_quitButton->setText(appText(lang, "app.quit"));
+    }
+    updateSidebarAvailability();
+}
+
+void MainWindow::updateSidebarAvailability()
+{
+    const BitcoinNodeStatus status = m_services.bitcoinStatus();
+    const bool bitcoinSynced = status.rpcAvailable && !status.initialBlockDownload;
+    if (m_electrsItem) {
+        m_electrsItem->setHidden(!bitcoinSynced);
+    }
+    if (m_mempoolItem) {
+        m_mempoolItem->setHidden(!bitcoinSynced);
+    }
+    if (m_publicPoolItem) {
+        m_publicPoolItem->setHidden(!bitcoinSynced);
+    }
+    if (m_sidebar && m_sidebar->currentItem() && m_sidebar->currentItem()->isHidden()) {
+        m_sidebar->setCurrentItem(m_dashboardItem);
+    }
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    m_config.setWindowGeometry(saveGeometry());
+    QMainWindow::closeEvent(event);
 }
 
 QString MainWindow::lightStyle() const
@@ -289,12 +340,43 @@ QString MainWindow::lightStyle() const
             background: #111827;
             color: #ffffff;
         }
+        QPushButton#sidebarQuitButton {
+            margin: 0 16px 18px 16px;
+            min-height: 42px;
+            text-align: left;
+            padding-left: 14px;
+            border: 1px solid #7f1d1d;
+            border-radius: 12px;
+            background: #8f1d1d;
+            color: #fff5f5;
+            font-weight: 800;
+        }
+        QPushButton#sidebarQuitButton:hover {
+            background: #a62525;
+            border-color: #991b1b;
+        }
+        QPushButton#sidebarQuitButton:disabled {
+            background: #5f1b1b;
+            border-color: #4b1717;
+            color: #d8a9a9;
+        }
         QWidget#metricCard {
             background: #ffffff;
             border: none;
             border-radius: 18px;
         }
         QWidget#metricCard QLabel, QWidget#metricCard QWidget {
+            background: transparent;
+        }
+        QWidget#dashboardGroup {
+            background: transparent;
+            border: 1px solid #dde4ef;
+            border-radius: 18px;
+        }
+        QWidget#dashboardGroup QLabel#dashboardGroupTitle {
+            color: #303746;
+            font-size: 15px;
+            font-weight: 800;
             background: transparent;
         }
         QWidget#settingsContent {
@@ -419,7 +501,7 @@ QString MainWindow::lightStyle() const
         }
         QProgressBar::chunk {
             border-radius: 6px;
-            background: #30d158;
+            background: #f7931a;
         }
         QScrollArea {
             border: none;
@@ -494,12 +576,43 @@ QString MainWindow::darkStyle() const
             background: #f5f7fb;
             color: #111827;
         }
+        QPushButton#sidebarQuitButton {
+            margin: 0 16px 18px 16px;
+            min-height: 42px;
+            text-align: left;
+            padding-left: 14px;
+            border: 1px solid #7f1d1d;
+            border-radius: 12px;
+            background: #7f1d1d;
+            color: #fff5f5;
+            font-weight: 800;
+        }
+        QPushButton#sidebarQuitButton:hover {
+            background: #991b1b;
+            border-color: #b91c1c;
+        }
+        QPushButton#sidebarQuitButton:disabled {
+            background: #451a1a;
+            border-color: #3f1717;
+            color: #b98d8d;
+        }
         QWidget#metricCard {
             background: #191e29;
             border: none;
             border-radius: 18px;
         }
         QWidget#metricCard QLabel, QWidget#metricCard QWidget {
+            background: transparent;
+        }
+        QWidget#dashboardGroup {
+            background: transparent;
+            border: 1px solid #303746;
+            border-radius: 18px;
+        }
+        QWidget#dashboardGroup QLabel#dashboardGroupTitle {
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 800;
             background: transparent;
         }
         QWidget#settingsContent {
@@ -625,7 +738,7 @@ QString MainWindow::darkStyle() const
         }
         QProgressBar::chunk {
             border-radius: 6px;
-            background: #30d158;
+            background: #f7931a;
         }
         QScrollArea {
             border: none;

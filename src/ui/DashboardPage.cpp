@@ -35,6 +35,27 @@ QWidget* createCard(QWidget* content, QWidget* parent, int height = 138)
     return card;
 }
 
+QWidget* createGroup(QLabel** titleTarget, QGridLayout** gridTarget, QWidget* parent)
+{
+    auto* group = new QWidget(parent);
+    group->setObjectName("dashboardGroup");
+    auto* layout = new QVBoxLayout(group);
+    layout->setContentsMargins(18, 16, 18, 18);
+    layout->setSpacing(14);
+
+    auto* title = new QLabel(group);
+    title->setObjectName("dashboardGroupTitle");
+    *titleTarget = title;
+    layout->addWidget(title);
+
+    auto* grid = new QGridLayout();
+    grid->setHorizontalSpacing(18);
+    grid->setVerticalSpacing(18);
+    *gridTarget = grid;
+    layout->addLayout(grid);
+    return group;
+}
+
 QString formatBytes(qint64 bytes)
 {
     const double gib = 1024.0 * 1024.0 * 1024.0;
@@ -60,8 +81,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     title->setObjectName("pageTitle");
     root->addWidget(title);
 
-    auto* metricsRow = new QHBoxLayout();
-    metricsRow->setSpacing(18);
+    auto* statisticsGroup = createGroup(&m_statisticsTitle, &m_metricsGrid, this);
 
     m_blockHeight = createMetricLabel(text("dashboard.blockHeight"), "0", this);
     m_sync = createMetricLabel(text("dashboard.sync"), "0.00 %", this);
@@ -94,16 +114,16 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     storageLayout->addWidget(m_storage);
     storageLayout->addWidget(m_storageProgress);
 
-    metricsRow->addWidget(createCard(m_blockHeight, this), 1);
-    metricsRow->addWidget(createCard(syncWidget, this), 1);
-    metricsRow->addWidget(createCard(storageWidget, this), 2);
-    metricsRow->addWidget(createCard(m_peers, this), 1);
-    metricsRow->addWidget(createCard(m_network, this), 1);
-    root->addLayout(metricsRow);
+    m_metricCards = {
+        createCard(m_blockHeight, this),
+        createCard(syncWidget, this),
+        createCard(storageWidget, this),
+        createCard(m_peers, this),
+        createCard(m_network, this),
+    };
+    root->addWidget(statisticsGroup);
 
-    auto* servicesGrid = new QGridLayout();
-    servicesGrid->setHorizontalSpacing(18);
-    servicesGrid->setVerticalSpacing(18);
+    auto* servicesGroup = createGroup(&m_servicesTitle, &m_servicesGrid, this);
     const QList<QPair<QString, QLabel*>> services{
         {"bitcoind", m_bitcoin},
         {"electrs", m_electrs},
@@ -132,9 +152,9 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
         QObject::connect(stop, &QPushButton::clicked, this, [this, id = services.at(i).first]() {
             Q_EMIT stopServiceRequested(id);
         });
-        servicesGrid->addWidget(createCard(wrapper, this, 168), i / 4, i % 4);
+        m_serviceCards << createCard(wrapper, this, 168);
     }
-    root->addLayout(servicesGrid);
+    root->addWidget(servicesGroup);
     root->addStretch();
 
     updateStorage();
@@ -142,6 +162,17 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     QObject::connect(&m_storageTimer, &QTimer::timeout, this, &DashboardPage::updateStorage);
     m_storageTimer.start();
     QObject::connect(&m_config, &ConfigManager::changed, this, &DashboardPage::retranslate);
+    for (int i = 0; i < m_metricCards.size(); ++i) {
+        m_metricsGrid->addWidget(m_metricCards.at(i), 0, i);
+    }
+    m_metricsGrid->setColumnStretch(0, 1);
+    m_metricsGrid->setColumnStretch(1, 1);
+    m_metricsGrid->setColumnStretch(2, 2);
+    m_metricsGrid->setColumnStretch(3, 1);
+    m_metricsGrid->setColumnStretch(4, 1);
+    for (int i = 0; i < m_serviceCards.size(); ++i) {
+        m_servicesGrid->addWidget(m_serviceCards.at(i), 0, i);
+    }
 }
 
 void DashboardPage::updateBitcoinStatus(const BitcoinNodeStatus& status)
@@ -219,8 +250,18 @@ QString DashboardPage::stateText(ServiceState state) const
 
 void DashboardPage::retranslate()
 {
+    const QString groupTitleStyle = QString("color:%1;font-size:15px;font-weight:800;background:transparent;")
+        .arg(m_config.theme().toLower() == "dark" ? "#ffffff" : "#303746");
     if (m_title) {
         m_title->setText(text("dashboard.title"));
+    }
+    if (m_statisticsTitle) {
+        m_statisticsTitle->setText(text("dashboard.statistics"));
+        m_statisticsTitle->setStyleSheet(groupTitleStyle);
+    }
+    if (m_servicesTitle) {
+        m_servicesTitle->setText(text("dashboard.services"));
+        m_servicesTitle->setStyleSheet(groupTitleStyle);
     }
     for (auto* button : m_startButtons) {
         button->setText(text("app.start"));

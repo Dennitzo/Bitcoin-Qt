@@ -6,6 +6,7 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIntValidator>
 #include <QLabel>
 #include <QPushButton>
 #include <QScrollArea>
@@ -15,21 +16,37 @@
 
 namespace {
 
-QSpinBox* portBox(quint16 value, QWidget* parent)
+QLineEdit* portEdit(quint16 value, QWidget* parent)
 {
-    auto* box = new QSpinBox(parent);
-    box->setRange(1, 65535);
-    box->setValue(value);
-    box->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    return box;
+    auto* edit = new QLineEdit(QString::number(value), parent);
+    edit->setValidator(new QIntValidator(1, 65535, edit));
+    edit->setMaximumWidth(180);
+    edit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    return edit;
 }
 
 QLabel* fieldLabel(const QString& text, QWidget* parent)
 {
     auto* label = new QLabel(text, parent);
     label->setObjectName("settingsFieldLabel");
-    label->setFixedWidth(190);
+    label->setMinimumWidth(150);
     return label;
+}
+
+void prepareField(QWidget* field)
+{
+    field->setMaximumWidth(360);
+    field->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+}
+
+quint16 portValue(const QLineEdit* edit)
+{
+    bool ok = false;
+    const int value = edit ? edit->text().toInt(&ok) : 0;
+    if (!ok) {
+        return 1;
+    }
+    return static_cast<quint16>(qBound(1, value, 65535));
 }
 
 }
@@ -59,14 +76,23 @@ void SettingsPage::buildUi()
     scroll->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     auto* content = new QWidget(scroll);
     content->setObjectName("settingsContent");
-    content->setMaximumWidth(900);
     auto* contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(0, 0, 0, 0);
     contentLayout->setSpacing(18);
+    auto* columns = new QHBoxLayout();
+    columns->setSpacing(18);
+    m_leftColumn = new QVBoxLayout();
+    m_rightColumn = new QVBoxLayout();
+    m_leftColumn->setSpacing(18);
+    m_rightColumn->setSpacing(18);
+    columns->addLayout(m_leftColumn, 1);
+    columns->addLayout(m_rightColumn, 1);
+    contentLayout->addLayout(columns);
 
-    auto createSection = [this, contentLayout](QLabel** titleTarget) {
+    auto createSection = [this](QLabel** titleTarget) {
         auto* section = new QWidget(this);
         section->setObjectName("settingsSection");
+        section->setMinimumWidth(300);
         auto* sectionLayout = new QVBoxLayout(section);
         sectionLayout->setContentsMargins(22, 20, 22, 22);
         sectionLayout->setSpacing(16);
@@ -79,12 +105,12 @@ void SettingsPage::buildUi()
         auto* form = new QFormLayout();
         form->setLabelAlignment(Qt::AlignLeft);
         form->setFormAlignment(Qt::AlignTop);
-        form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-        form->setHorizontalSpacing(28);
+        form->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
+        form->setHorizontalSpacing(18);
         form->setVerticalSpacing(13);
-        form->setRowWrapPolicy(QFormLayout::DontWrapRows);
+        form->setRowWrapPolicy(QFormLayout::WrapLongRows);
         sectionLayout->addLayout(form);
-        contentLayout->addWidget(section);
+        m_sections << section;
         return form;
     };
 
@@ -101,24 +127,27 @@ void SettingsPage::buildUi()
 
     auto* storageForm = createSection(&m_storageTitle);
     m_baseDir = new QLineEdit(m_config.baseDataDir(), this);
+    prepareField(m_baseDir);
     m_browseButton = new QPushButton(this);
     m_browseButton->setObjectName("secondaryButton");
     auto* baseRow = new QHBoxLayout();
-    baseRow->addWidget(m_baseDir, 1);
+    baseRow->addWidget(m_baseDir);
     baseRow->addWidget(m_browseButton);
     addLayoutRow(storageForm, &m_baseDirLabel, baseRow);
 
     auto* bitcoinForm = createSection(&m_bitcoinTitle);
     m_rpcUser = new QLineEdit(m_config.rpcUser(), this);
     m_rpcPassword = new QLineEdit(m_config.rpcPassword(), this);
+    prepareField(m_rpcUser);
+    prepareField(m_rpcPassword);
     m_rpcPassword->setEchoMode(QLineEdit::Password);
-    m_rpcPort = portBox(m_config.bitcoinRpcPort(), this);
+    m_rpcPort = portEdit(m_config.bitcoinRpcPort(), this);
     m_network = new QComboBox(this);
     m_network->addItem("Mainnet", "mainnet");
     m_network->addItem("Testnet", "testnet");
     m_network->addItem("Signet", "signet");
     m_network->addItem("Regtest", "regtest");
-    m_network->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    prepareField(m_network);
     m_network->setCurrentIndex(static_cast<int>(m_config.network()));
     addRow(bitcoinForm, &m_rpcUserLabel, m_rpcUser);
     addRow(bitcoinForm, &m_rpcPasswordLabel, m_rpcPassword);
@@ -126,14 +155,15 @@ void SettingsPage::buildUi()
     addRow(bitcoinForm, &m_networkLabel, m_network);
 
     auto* serviceForm = createSection(&m_servicesTitle);
-    m_electrsPort = portBox(m_config.electrsPort(), this);
-    m_mempoolDatabasePort = portBox(m_config.mempoolDatabasePort(), this);
-    m_mempoolBackendPort = portBox(m_config.mempoolBackendPort(), this);
-    m_mempoolFrontendPort = portBox(m_config.mempoolFrontendPort(), this);
-    m_publicPoolApiPort = portBox(m_config.publicPoolApiPort(), this);
-    m_publicPoolStratumPort = portBox(m_config.publicPoolStratumPort(), this);
-    m_publicPoolFrontendPort = portBox(m_config.publicPoolFrontendPort(), this);
+    m_electrsPort = portEdit(m_config.electrsPort(), this);
+    m_mempoolDatabasePort = portEdit(m_config.mempoolDatabasePort(), this);
+    m_mempoolBackendPort = portEdit(m_config.mempoolBackendPort(), this);
+    m_mempoolFrontendPort = portEdit(m_config.mempoolFrontendPort(), this);
+    m_publicPoolApiPort = portEdit(m_config.publicPoolApiPort(), this);
+    m_publicPoolStratumPort = portEdit(m_config.publicPoolStratumPort(), this);
+    m_publicPoolFrontendPort = portEdit(m_config.publicPoolFrontendPort(), this);
     m_publicPoolAddress = new QLineEdit(m_config.publicPoolPayoutAddress(), this);
+    prepareField(m_publicPoolAddress);
     addRow(serviceForm, &m_electrsPortLabel, m_electrsPort);
     addRow(serviceForm, &m_mempoolDatabasePortLabel, m_mempoolDatabasePort);
     addRow(serviceForm, &m_mempoolBackendPortLabel, m_mempoolBackendPort);
@@ -146,11 +176,11 @@ void SettingsPage::buildUi()
     auto* appForm = createSection(&m_appTitle);
     m_theme = new QComboBox(this);
     m_theme->addItems({"system", "light", "dark"});
-    m_theme->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    prepareField(m_theme);
     m_theme->setCurrentText(m_config.theme());
     m_language = new QComboBox(this);
     m_language->addItems({"en", "de"});
-    m_language->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    prepareField(m_language);
     m_language->setCurrentText(m_config.language());
     m_autostart = new QCheckBox(this);
     m_autostart->setChecked(m_config.autostart());
@@ -192,6 +222,12 @@ void SettingsPage::buildUi()
     QObject::connect(m_saveButton, &QPushButton::clicked, this, &SettingsPage::save);
     QObject::connect(&m_config, &ConfigManager::changed, this, &SettingsPage::retranslate);
     retranslate();
+    for (int i = 0; i < m_sections.size(); ++i) {
+        auto* column = (i % 2 == 0) ? m_leftColumn : m_rightColumn;
+        column->addWidget(m_sections.at(i), 0, Qt::AlignTop);
+    }
+    m_leftColumn->addStretch();
+    m_rightColumn->addStretch();
 }
 
 void SettingsPage::save()
@@ -202,14 +238,14 @@ void SettingsPage::save()
     m_config.setStringValue("bitcoin/rpcUser", m_rpcUser->text().trimmed());
     m_config.setStringValue("bitcoin/rpcPassword", m_rpcPassword->text());
     m_config.setStringValue("bitcoin/network", m_network->currentData().toString());
-    m_config.setUIntValue("bitcoin/rpcPort", static_cast<quint16>(m_rpcPort->value()));
-    m_config.setUIntValue("electrs/port", static_cast<quint16>(m_electrsPort->value()));
-    m_config.setUIntValue("mempool/databasePort", static_cast<quint16>(m_mempoolDatabasePort->value()));
-    m_config.setUIntValue("mempool/backendPort", static_cast<quint16>(m_mempoolBackendPort->value()));
-    m_config.setUIntValue("mempool/frontendPort", static_cast<quint16>(m_mempoolFrontendPort->value()));
-    m_config.setUIntValue("publicPool/apiPort", static_cast<quint16>(m_publicPoolApiPort->value()));
-    m_config.setUIntValue("publicPool/stratumPort", static_cast<quint16>(m_publicPoolStratumPort->value()));
-    m_config.setUIntValue("publicPool/frontendPort", static_cast<quint16>(m_publicPoolFrontendPort->value()));
+    m_config.setUIntValue("bitcoin/rpcPort", portValue(m_rpcPort));
+    m_config.setUIntValue("electrs/port", portValue(m_electrsPort));
+    m_config.setUIntValue("mempool/databasePort", portValue(m_mempoolDatabasePort));
+    m_config.setUIntValue("mempool/backendPort", portValue(m_mempoolBackendPort));
+    m_config.setUIntValue("mempool/frontendPort", portValue(m_mempoolFrontendPort));
+    m_config.setUIntValue("publicPool/apiPort", portValue(m_publicPoolApiPort));
+    m_config.setUIntValue("publicPool/stratumPort", portValue(m_publicPoolStratumPort));
+    m_config.setUIntValue("publicPool/frontendPort", portValue(m_publicPoolFrontendPort));
     m_config.setStringValue("publicPool/payoutAddress", m_publicPoolAddress->text().trimmed());
     m_config.setStringValue("app/theme", m_theme->currentText());
     m_config.setStringValue("app/language", m_language->currentText());
@@ -267,10 +303,4 @@ void SettingsPage::retranslate()
     if (m_autostart) m_autostart->setText(appText(lang, "settings.autostartText"));
     if (m_savedOverlayTitle) m_savedOverlayTitle->setText(appText(lang, "settings.savedTitle"));
     if (m_savedOverlayText) m_savedOverlayText->setText(appText(lang, "settings.savedText"));
-}
-
-void SettingsPage::resizeEvent(QResizeEvent* event)
-{
-    QWidget::resizeEvent(event);
-    positionSavedOverlay();
 }

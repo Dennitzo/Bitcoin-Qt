@@ -8,8 +8,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QResizeEvent>
-#include <QSpinBox>
+#include <QVBoxLayout>
 #include <QWidget>
 
 class SettingsPage final : public QWidget {
@@ -24,9 +23,6 @@ private:
     void showSavedOverlay();
     void positionSavedOverlay();
     void retranslate();
-
-protected:
-    void resizeEvent(QResizeEvent* event) override;
 
     ConfigManager& m_config;
     QLabel* m_title = nullptr;
@@ -58,17 +54,20 @@ protected:
     QLineEdit* m_rpcUser = nullptr;
     QLineEdit* m_rpcPassword = nullptr;
     QComboBox* m_network = nullptr;
-    QSpinBox* m_rpcPort = nullptr;
-    QSpinBox* m_electrsPort = nullptr;
-    QSpinBox* m_mempoolDatabasePort = nullptr;
-    QSpinBox* m_mempoolBackendPort = nullptr;
-    QSpinBox* m_mempoolFrontendPort = nullptr;
-    QSpinBox* m_publicPoolApiPort = nullptr;
-    QSpinBox* m_publicPoolStratumPort = nullptr;
-    QSpinBox* m_publicPoolFrontendPort = nullptr;
+    QLineEdit* m_rpcPort = nullptr;
+    QLineEdit* m_electrsPort = nullptr;
+    QLineEdit* m_mempoolDatabasePort = nullptr;
+    QLineEdit* m_mempoolBackendPort = nullptr;
+    QLineEdit* m_mempoolFrontendPort = nullptr;
+    QLineEdit* m_publicPoolApiPort = nullptr;
+    QLineEdit* m_publicPoolStratumPort = nullptr;
+    QLineEdit* m_publicPoolFrontendPort = nullptr;
     QLineEdit* m_publicPoolAddress = nullptr;
     QComboBox* m_theme = nullptr;
     QComboBox* m_language = nullptr;
     QCheckBox* m_autostart = nullptr;
     QFrame* m_savedOverlay = nullptr;
+    QVBoxLayout* m_leftColumn = nullptr;
+    QVBoxLayout* m_rightColumn = nullptr;
+    QList<QWidget*> m_sections;
 };

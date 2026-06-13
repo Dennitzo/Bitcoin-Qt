@@ -36,13 +36,23 @@ private:
     QString lightStyle() const;
     QString darkStyle() const;
     void configureWebPage(QWebEngineView* view);
+    void updateSidebarAvailability();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
     ConfigManager& m_config;
     LogManager& m_logs;
     ServiceManager& m_services;
 
     QListWidget* m_sidebar = nullptr;
+    QListWidgetItem* m_dashboardItem = nullptr;
+    QListWidgetItem* m_bitcoindItem = nullptr;
+    QListWidgetItem* m_electrsItem = nullptr;
+    QListWidgetItem* m_mempoolItem = nullptr;
+    QListWidgetItem* m_publicPoolItem = nullptr;
     QPushButton* m_settingsButton = nullptr;
+    QPushButton* m_quitButton = nullptr;
     QStackedWidget* m_pages = nullptr;
     DashboardPage* m_dashboard = nullptr;
     LogsPage* m_bitcoindLog = nullptr;

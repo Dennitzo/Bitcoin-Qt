@@ -3,6 +3,7 @@
 #include "AppTypes.h"
 
 #include <QObject>
+#include <QByteArray>
 #include <QSettings>
 #include <QString>
 #include <QUrl>
@@ -53,6 +54,8 @@ public:
     bool autostart() const;
     QUrl webViewUrl(const QString& id) const;
     void setWebViewUrl(const QString& id, const QUrl& url);
+    QByteArray windowGeometry() const;
+    void setWindowGeometry(const QByteArray& geometry);
 
 Q_SIGNALS:
     void changed();
