@@ -35,6 +35,9 @@ protected:
     void setState(ServiceState state, const QString& detail = {});
     void setRestartEnabled(bool enabled);
     void scheduleRestart();
+    void beginManualStop();
+    void endManualStop();
+    bool isManualStopRequested() const;
     QProcess& process();
     ConfigManager& config();
     const ConfigManager& config() const;

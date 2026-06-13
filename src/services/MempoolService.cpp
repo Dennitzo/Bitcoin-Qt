@@ -41,6 +41,7 @@ void MempoolService::start()
 
 void MempoolService::stop()
 {
+    beginManualStop();
     m_startRequested = false;
     m_databaseHealth.stop();
     m_electrsHealth.stop();
@@ -53,9 +54,11 @@ void MempoolService::stop()
         proc->terminate();
         if (!proc->waitForFinished(3000)) {
             proc->kill();
+            proc->waitForFinished(1000);
         }
     }
     setState(ServiceState::Stopped, "Gestoppt");
+    endManualStop();
 }
 
 QUrl MempoolService::frontendUrl() const
@@ -153,9 +156,15 @@ void MempoolService::startFrontend()
 
 void MempoolService::checkBackend()
 {
+    if (!m_startRequested) {
+        return;
+    }
     QNetworkReply* reply = m_network.get(QNetworkRequest(QUrl(QString("http://127.0.0.1:%1/api/v1/backend-info").arg(config().mempoolBackendPort()))));
     QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
+        if (!m_startRequested) {
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError) {
             setState(ServiceState::Starting, "Warte auf Mempool Backend");
             return;
@@ -167,9 +176,15 @@ void MempoolService::checkBackend()
 
 void MempoolService::checkFrontend()
 {
+    if (!m_startRequested) {
+        return;
+    }
     QNetworkReply* reply = m_network.get(QNetworkRequest(frontendUrl()));
     QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
+        if (!m_startRequested) {
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError) {
             setState(ServiceState::Starting, "Warte auf Mempool Frontend");
             return;
@@ -197,10 +212,13 @@ void MempoolService::attachProcess(QProcess& child, const QString& logId)
         }
     });
     QObject::connect(&child, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        if (!m_startRequested || isManualStopRequested()) {
+            return;
+        }
         setState(ServiceState::Error, "Mempool Prozessfehler");
     });
     QObject::connect(&child, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this, logId](int exitCode, QProcess::ExitStatus exitStatus) {
-        if (!m_startRequested) {
+        if (!m_startRequested || isManualStopRequested()) {
             return;
         }
 

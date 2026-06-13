@@ -210,13 +210,104 @@ function sortBlocksOldestFirst(blocks) {
     .sort((a, b) => Number(a.height || 0) - Number(b.height || 0));
 }
 
+function maxBlockHeight(blocks) {
+  return (Array.isArray(blocks) ? blocks : [])
+    .reduce((max, block) => Math.max(max, Number(block?.height || 0)), 0);
+}
+
+function outputType(scriptPubKey = {}) {
+  const type = scriptPubKey.type || '';
+  if (type === 'pubkeyhash') return 'p2pkh';
+  if (type === 'scripthash') return 'p2sh';
+  if (type === 'witness_v0_keyhash') return 'v0_p2wpkh';
+  if (type === 'witness_v0_scripthash') return 'v0_p2wsh';
+  if (type === 'witness_v1_taproot') return 'v1_p2tr';
+  if (type === 'nulldata') return 'op_return';
+  return type || 'unknown';
+}
+
+function txFeeSats(tx) {
+  if (tx.fee != null) {
+    return Math.max(0, Math.round(Number(tx.fee || 0) * 100000000));
+  }
+  return 0;
+}
+
+function transformCoreTransaction(tx, block) {
+  const status = {
+    confirmed: true,
+    block_height: block.height,
+    block_hash: block.hash,
+    block_time: block.time,
+  };
+  const vout = (tx.vout || []).map((output) => {
+    const scriptPubKey = output.scriptPubKey || {};
+    const address = Array.isArray(scriptPubKey.addresses) ? scriptPubKey.addresses[0] : scriptPubKey.address;
+    return {
+      scriptpubkey: scriptPubKey.hex || '',
+      scriptpubkey_asm: scriptPubKey.asm || '',
+      scriptpubkey_type: outputType(scriptPubKey),
+      scriptpubkey_address: address,
+      value: Math.round(Number(output.value || 0) * 100000000),
+    };
+  });
+  const vin = (tx.vin || []).map((input) => ({
+    txid: input.txid || '',
+    vout: Number(input.vout ?? 0),
+    is_coinbase: Boolean(input.coinbase),
+    scriptsig: input.scriptSig?.hex || input.coinbase || '',
+    scriptsig_asm: input.scriptSig?.asm || '',
+    sequence: input.sequence,
+    witness: input.txinwitness || [],
+    prevout: {
+      scriptpubkey: '',
+      scriptpubkey_asm: '',
+      scriptpubkey_type: 'unknown',
+      value: 0,
+    },
+  }));
+  const fee = txFeeSats(tx);
+  const vsize = Number(tx.vsize || Math.ceil(Number(tx.weight || 0) / 4) || tx.size || 0);
+  return {
+    txid: tx.txid,
+    version: tx.version,
+    locktime: tx.locktime,
+    size: Number(tx.size || 0),
+    weight: Number(tx.weight || 0),
+    fee,
+    vin,
+    vout,
+    status,
+    feePerVsize: vsize ? fee / vsize : 0,
+    effectiveFeePerVsize: vsize ? fee / vsize : 0,
+  };
+}
+
+function transformCoreTransactionSummary(tx) {
+  const fee = txFeeSats(tx);
+  const vsize = Number(tx.vsize || Math.ceil(Number(tx.weight || 0) / 4) || tx.size || 0);
+  return {
+    txid: tx.txid,
+    fee,
+    vsize,
+    value: Math.round(Number(tx.vout?.reduce((sum, output) => sum + Number(output.value || 0), 0) || 0) * 100000000),
+    rate: vsize ? fee / vsize : 0,
+    flags: null,
+    context: 'actual',
+  };
+}
+
+async function loadCoreBlockWithTransactions(hash) {
+  return rpcCall('getblock', [hash, 2]);
+}
+
 async function loadFallbackBlocks(info) {
   const tip = Number(info.blocks || 0);
   const start = Math.max(0, tip - 7);
   const blocks = [];
   for (let height = start; height <= tip; height += 1) {
     const hash = await rpcCall('getblockhash', [height]);
-    const block = await rpcCall('getblock', [hash, 1]);
+    const block = await rpcCall('getblockheader', [hash, true]);
     blocks.push(blockFromCore(block));
   }
   return sortBlocksOldestFirst(blocks);
@@ -224,7 +315,9 @@ async function loadFallbackBlocks(info) {
 
 async function fallbackBlocks(info = null) {
   const now = Date.now();
-  if (fallbackBlocksCache && now - fallbackBlocksCacheAt < fallbackCacheTtlMs) {
+  const blockchainInfo = info || await rpcCall('getblockchaininfo');
+  const tip = Number(blockchainInfo.blocks || 0);
+  if (fallbackBlocksCache && now - fallbackBlocksCacheAt < fallbackCacheTtlMs && maxBlockHeight(fallbackBlocksCache) >= tip) {
     return fallbackBlocksCache;
   }
   if (fallbackBlocksInFlight) {
@@ -232,7 +325,6 @@ async function fallbackBlocks(info = null) {
   }
 
   fallbackBlocksInFlight = (async () => {
-    const blockchainInfo = info || await rpcCall('getblockchaininfo');
     const blocks = await loadFallbackBlocks(blockchainInfo);
     fallbackBlocksCache = sortBlocksOldestFirst(blocks);
     fallbackBlocksCacheAt = Date.now();
@@ -262,6 +354,25 @@ async function fallbackResponse(urlPath) {
       statusCode: 200,
       headers: jsonHeaders(),
       body: JSON.stringify(await fallbackBlocks()),
+    };
+  }
+  const blockSummaryMatch = cleanPath.match(/^\/api\/v1\/block\/([0-9a-fA-F]{64})\/summary$/);
+  if (blockSummaryMatch) {
+    const block = await loadCoreBlockWithTransactions(blockSummaryMatch[1]);
+    return {
+      statusCode: 200,
+      headers: jsonHeaders(),
+      body: JSON.stringify((block.tx || []).map(transformCoreTransactionSummary)),
+    };
+  }
+  const blockTransactionsMatch = cleanPath.match(/^\/api\/block\/([0-9a-fA-F]{64})\/txs\/(\d+)$/);
+  if (blockTransactionsMatch) {
+    const block = await loadCoreBlockWithTransactions(blockTransactionsMatch[1]);
+    const start = Number(blockTransactionsMatch[2] || 0);
+    return {
+      statusCode: 200,
+      headers: jsonHeaders(),
+      body: JSON.stringify((block.tx || []).slice(start, start + 25).map((tx) => transformCoreTransaction(tx, block))),
     };
   }
   if (cleanPath === '/api/v1/fees/mempool-blocks') {
@@ -406,6 +517,10 @@ function attachFallbackWebsocket(socket) {
 
 function prefersCoreFallback(urlPath) {
   const cleanPath = urlPath.split('?')[0];
+  if (/^\/api\/v1\/block\/[0-9a-fA-F]{64}\/summary$/.test(cleanPath)
+      || /^\/api\/block\/[0-9a-fA-F]{64}\/txs\/\d+$/.test(cleanPath)) {
+    return true;
+  }
   return [
     '/api/v1/init-data',
     '/api/v1/blocks',
@@ -431,6 +546,11 @@ function shouldUseFallback(urlPath, statusCode, body) {
     return true;
   }
   if (cleanPath === '/api/v1/blocks' && (!text || text === '[]')) {
+    return true;
+  }
+  if ((/^\/api\/v1\/block\/[0-9a-fA-F]{64}\/summary$/.test(cleanPath)
+      || /^\/api\/block\/[0-9a-fA-F]{64}\/txs\/\d+$/.test(cleanPath))
+      && (statusCode >= 400 || !text || text === '[]')) {
     return true;
   }
   return false;

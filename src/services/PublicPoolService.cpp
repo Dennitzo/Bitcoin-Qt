@@ -26,11 +26,14 @@ PublicPoolService::~PublicPoolService()
 
 void PublicPoolService::start()
 {
+    m_startRequested = true;
     startBackend();
 }
 
 void PublicPoolService::stop()
 {
+    beginManualStop();
+    m_startRequested = false;
     m_backendHealth.stop();
     m_frontendHealth.stop();
     for (QProcess* proc : {&m_frontend, &m_backend}) {
@@ -40,9 +43,11 @@ void PublicPoolService::stop()
         proc->terminate();
         if (!proc->waitForFinished(3000)) {
             proc->kill();
+            proc->waitForFinished(1000);
         }
     }
     setState(ServiceState::Stopped, "Gestoppt");
+    endManualStop();
 }
 
 QUrl PublicPoolService::frontendUrl() const
@@ -52,7 +57,7 @@ QUrl PublicPoolService::frontendUrl() const
 
 void PublicPoolService::startBackend()
 {
-    if (m_backend.state() != QProcess::NotRunning) {
+    if (!m_startRequested || m_backend.state() != QProcess::NotRunning) {
         return;
     }
     const QString node = config().nodeExecutable();
@@ -87,7 +92,7 @@ void PublicPoolService::startBackend()
 
 void PublicPoolService::startFrontend()
 {
-    if (m_frontend.state() != QProcess::NotRunning) {
+    if (!m_startRequested || m_frontend.state() != QProcess::NotRunning) {
         return;
     }
     const QString node = config().nodeExecutable();
@@ -110,9 +115,15 @@ void PublicPoolService::startFrontend()
 
 void PublicPoolService::checkBackend()
 {
+    if (!m_startRequested) {
+        return;
+    }
     QNetworkReply* reply = m_network.get(QNetworkRequest(QUrl(QString("http://127.0.0.1:%1/api/client/pool/stats").arg(config().publicPoolApiPort()))));
     QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
+        if (!m_startRequested) {
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError) {
             setState(ServiceState::Starting, "Warte auf Public Pool API");
             return;
@@ -124,9 +135,15 @@ void PublicPoolService::checkBackend()
 
 void PublicPoolService::checkFrontend()
 {
+    if (!m_startRequested) {
+        return;
+    }
     QNetworkReply* reply = m_network.get(QNetworkRequest(frontendUrl()));
     QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
+        if (!m_startRequested) {
+            return;
+        }
         if (reply->error() != QNetworkReply::NoError) {
             setState(ServiceState::Starting, "Warte auf Public Pool UI");
             return;
@@ -154,9 +171,15 @@ void PublicPoolService::attachProcess(QProcess& child, const QString& logId)
         }
     });
     QObject::connect(&child, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        if (!m_startRequested || isManualStopRequested()) {
+            return;
+        }
         setState(ServiceState::Error, "Public Pool Prozessfehler");
     });
     QObject::connect(&child, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this, logId](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (!m_startRequested || isManualStopRequested()) {
+            return;
+        }
         if (exitStatus == QProcess::CrashExit || exitCode != 0) {
             setState(ServiceState::Error, QString("%1 beendet mit Code %2").arg(logId).arg(exitCode));
         }

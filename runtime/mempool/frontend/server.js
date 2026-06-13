@@ -1,5 +1,4 @@
 const http = require('http');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const WebSocket = require(path.join(__dirname, '..', 'backend', 'node_modules', 'ws'));
@@ -10,8 +9,6 @@ const backendHost = process.env.MEMPOOL_BACKEND_HOST || '127.0.0.1';
 const bitcoinRpcPort = Number(process.env.MEMPOOL_BITCOIN_RPC_PORT || 8345);
 const bitcoinRpcUser = process.env.MEMPOOL_BITCOIN_RPC_USER || 'bitcoin';
 const bitcoinRpcPassword = process.env.MEMPOOL_BITCOIN_RPC_PASSWORD || 'bitcoin';
-const publicFallbackEnabled = process.env.MEMPOOL_PUBLIC_FALLBACK !== '0';
-const publicFallbackBase = process.env.MEMPOOL_PUBLIC_FALLBACK_URL || 'https://mempool.space';
 const requestLogFile = process.env.MEMPOOL_FRONTEND_REQUEST_LOG || '/tmp/bitcoin-qt-mempool-frontend.log';
 const fallbackCacheTtlMs = 30000;
 
@@ -103,7 +100,7 @@ function rpcCall(method, params = []) {
       port: bitcoinRpcPort,
       path: '/',
       method: 'POST',
-      timeout: 2500,
+      timeout: 10000,
       headers: {
         authorization: `Basic ${auth}`,
         'content-type': 'text/plain',
@@ -133,8 +130,7 @@ function rpcCall(method, params = []) {
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
-    const client = url.startsWith('https:') ? https : http;
-    const request = client.get(url, {
+    const request = http.get(url, {
       timeout: 8000,
       headers: {'user-agent': 'Bitcoin-Qt IBD mempool fallback'},
     }, (response) => {
@@ -152,13 +148,9 @@ function fetchJson(url) {
         }
       });
     });
-    request.on('timeout', () => request.destroy(new Error('Public mempool fallback timeout')));
+    request.on('timeout', () => request.destroy(new Error('Mempool backend fallback timeout')));
     request.on('error', reject);
   });
-}
-
-function publicUrl(apiPath) {
-  return `${publicFallbackBase.replace(/\/+$/, '')}${apiPath}`;
 }
 
 function backendUrl(pathname) {
@@ -278,38 +270,6 @@ function transformRawMempool(info, rawMempool) {
   };
 }
 
-async function publicMempoolFallback() {
-  const [summary, mempoolBlocks, recommended, recent] = await Promise.all([
-    fetchJson(publicUrl('/api/mempool')),
-    fetchJson(publicUrl('/api/v1/fees/mempool-blocks')).catch(() => []),
-    fetchJson(publicUrl('/api/v1/fees/recommended')).catch(() => ({
-      fastestFee: 0,
-      halfHourFee: 0,
-      hourFee: 0,
-      economyFee: 0,
-      minimumFee: 0,
-    })),
-    fetchJson(publicUrl('/api/mempool/recent')).catch(() => []),
-  ]);
-  return {
-    sourceBackend: 'esplora',
-    info: {
-      loaded: true,
-      size: Number(summary.count || 0),
-      bytes: Number(summary.vsize || 0),
-      usage: 0,
-      total_fee: Number(summary.total_fee || 0) / 100000000,
-      maxmempool: 0,
-      mempoolminfee: 0,
-      minrelaytxfee: 0,
-    },
-    summary,
-    fees: {...recommended, mempoolBlocks},
-    mempoolBlocks,
-    recent,
-  };
-}
-
 async function fallbackMempool() {
   const now = Date.now();
   if (fallbackMempoolCache && now - fallbackMempoolCacheAt < fallbackCacheTtlMs) {
@@ -319,26 +279,13 @@ async function fallbackMempool() {
     return fallbackMempoolInFlight;
   }
 
-  const staleMempool = fallbackMempoolCache && fallbackMempoolCache.summary?.count > 0 ? fallbackMempoolCache : null;
   fallbackMempoolInFlight = Promise.all([
     rpcCall('getmempoolinfo'),
     rpcCall('getrawmempool', [true]),
-  ]).then(async ([info, rawMempool]) => {
+  ]).then(([info, rawMempool]) => {
     const localMempool = transformRawMempool(info, rawMempool);
-    if (publicFallbackEnabled && localMempool.summary.count === 0) {
-      try {
-        fallbackMempoolCache = await publicMempoolFallback();
-        logRequest(`fallback public mempool count=${fallbackMempoolCache.summary.count}`);
-      } catch {
-        fallbackMempoolCache = staleMempool || localMempool;
-        logRequest(staleMempool
-          ? `fallback public mempool failed, using stale count=${staleMempool.summary.count}`
-          : 'fallback public mempool failed, using local count=0');
-      }
-    } else {
-      fallbackMempoolCache = localMempool;
-      logRequest(`fallback local mempool count=${fallbackMempoolCache.summary.count}`);
-    }
+    fallbackMempoolCache = localMempool;
+    logRequest(`fallback local mempool count=${fallbackMempoolCache.summary.count}`);
     fallbackMempoolCacheAt = Date.now();
     fallbackMempoolInFlight = null;
     return fallbackMempoolCache;
@@ -350,7 +297,31 @@ async function fallbackMempool() {
   return fallbackMempoolInFlight;
 }
 
-function blockFromCore(block) {
+function feeRangeFromBlockStats(stats) {
+  const percentiles = Array.isArray(stats?.feerate_percentiles)
+    ? stats.feerate_percentiles.map((value) => Number(value || 0))
+    : [];
+  if (!percentiles.length) {
+    return [0, 0, 0, 0, 0, 0, 0];
+  }
+  return [
+    percentiles[0],
+    percentiles[0],
+    percentiles[1] ?? percentiles[0],
+    percentiles[2] ?? percentiles[1] ?? percentiles[0],
+    percentiles[3] ?? percentiles[2] ?? percentiles[0],
+    percentiles[4] ?? percentiles[3] ?? percentiles[0],
+    percentiles[4] ?? percentiles[3] ?? percentiles[0],
+  ];
+}
+
+function blockFromCore(block, stats = null) {
+  const totalFees = Number(stats?.totalfee || 0);
+  const subsidy = Number(stats?.subsidy || 0);
+  const avgFeeRate = Number(stats?.avgfeerate || 0);
+  const feeRange = feeRangeFromBlockStats(stats);
+  const medianFee = Number(stats?.medianfeerate || feeRange[3] || avgFeeRate || 0);
+
   return {
     id: block.hash,
     height: block.height,
@@ -360,17 +331,17 @@ function blockFromCore(block) {
     nonce: block.nonce || 0,
     difficulty: block.difficulty || 0,
     merkle_root: block.merkleroot || '',
-    tx_count: Array.isArray(block.tx) ? block.tx.length : (block.nTx || 0),
-    size: block.size || 0,
-    weight: block.weight || 0,
+    tx_count: Number(stats?.txs || (Array.isArray(block.tx) ? block.tx.length : (block.nTx || 0))),
+    size: Number(stats?.total_size || block.size || 0),
+    weight: Number(stats?.total_weight || block.weight || 0),
     previousblockhash: block.previousblockhash || '',
     mediantime: block.mediantime || block.time,
     stale: false,
     extras: {
-      reward: 0,
-      totalFees: 0,
-      avgFee: 0,
-      avgFeeRate: 0,
+      reward: subsidy + totalFees,
+      totalFees,
+      avgFee: avgFeeRate,
+      avgFeeRate,
       pool: {id: 0, name: 'Bitcoin Core', slug: 'bitcoin-core'},
       coinbaseRaw: '',
       coinbaseAddress: '',
@@ -378,12 +349,12 @@ function blockFromCore(block) {
       coinbaseSignatureAscii: '',
       header: '',
       matchRate: 0,
-      expectedFees: 0,
-      expectedWeight: 0,
+      expectedFees: totalFees,
+      expectedWeight: Number(stats?.total_weight || block.weight || 0),
       similarity: 0,
       cpfp: 0,
-      medianFee: 0,
-      feeRange: [0, 0, 0, 0, 0, 0, 0],
+      medianFee,
+      feeRange,
       totalInputs: 0,
       totalOutputs: 0,
       segwitTotalTxs: 0,
@@ -403,10 +374,104 @@ function sortBlocksOldestFirst(blocks) {
     .sort((a, b) => Number(a.height || 0) - Number(b.height || 0));
 }
 
+function maxBlockHeight(blocks) {
+  return (Array.isArray(blocks) ? blocks : [])
+    .reduce((max, block) => Math.max(max, Number(block?.height || 0)), 0);
+}
+
+function outputType(scriptPubKey = {}) {
+  const type = scriptPubKey.type || '';
+  if (type === 'pubkeyhash') return 'p2pkh';
+  if (type === 'scripthash') return 'p2sh';
+  if (type === 'witness_v0_keyhash') return 'v0_p2wpkh';
+  if (type === 'witness_v0_scripthash') return 'v0_p2wsh';
+  if (type === 'witness_v1_taproot') return 'v1_p2tr';
+  if (type === 'nulldata') return 'op_return';
+  return type || 'unknown';
+}
+
+function txFeeSats(tx) {
+  if (tx.fee != null) {
+    return Math.max(0, Math.round(Number(tx.fee || 0) * 100000000));
+  }
+  const input = Number(tx.vin?.reduce((sum, vin) => sum + Number(vin.prevout?.value || 0), 0) || 0);
+  const output = Number(tx.vout?.reduce((sum, vout) => sum + Number(vout.value || 0), 0) || 0);
+  return Math.max(0, Math.round(input - output));
+}
+
+function transformCoreTransaction(tx, block) {
+  const status = {
+    confirmed: true,
+    block_height: block.height,
+    block_hash: block.hash,
+    block_time: block.time,
+  };
+  const vout = (tx.vout || []).map((output) => {
+    const scriptPubKey = output.scriptPubKey || {};
+    const address = Array.isArray(scriptPubKey.addresses) ? scriptPubKey.addresses[0] : scriptPubKey.address;
+    return {
+      scriptpubkey: scriptPubKey.hex || '',
+      scriptpubkey_asm: scriptPubKey.asm || '',
+      scriptpubkey_type: outputType(scriptPubKey),
+      scriptpubkey_address: address,
+      value: Math.round(Number(output.value || 0) * 100000000),
+    };
+  });
+  const vin = (tx.vin || []).map((input) => ({
+    txid: input.txid || '',
+    vout: Number(input.vout ?? 0),
+    is_coinbase: Boolean(input.coinbase),
+    scriptsig: input.scriptSig?.hex || input.coinbase || '',
+    scriptsig_asm: input.scriptSig?.asm || '',
+    sequence: input.sequence,
+    witness: input.txinwitness || [],
+    prevout: {
+      scriptpubkey: '',
+      scriptpubkey_asm: '',
+      scriptpubkey_type: 'unknown',
+      value: 0,
+    },
+  }));
+  const fee = txFeeSats(tx);
+  const vsize = Number(tx.vsize || Math.ceil(Number(tx.weight || 0) / 4) || tx.size || 0);
+  return {
+    txid: tx.txid,
+    version: tx.version,
+    locktime: tx.locktime,
+    size: Number(tx.size || 0),
+    weight: Number(tx.weight || 0),
+    fee,
+    vin,
+    vout,
+    status,
+    feePerVsize: vsize ? fee / vsize : 0,
+    effectiveFeePerVsize: vsize ? fee / vsize : 0,
+  };
+}
+
+function transformCoreTransactionSummary(tx) {
+  const fee = txFeeSats(tx);
+  const vsize = Number(tx.vsize || Math.ceil(Number(tx.weight || 0) / 4) || tx.size || 0);
+  return {
+    txid: tx.txid,
+    fee,
+    vsize,
+    value: Math.round(Number(tx.vout?.reduce((sum, output) => sum + Number(output.value || 0), 0) || 0) * 100000000),
+    rate: vsize ? fee / vsize : 0,
+    flags: null,
+    context: 'actual',
+  };
+}
+
+async function loadCoreBlockWithTransactions(hash) {
+  return rpcCall('getblock', [hash, 2]);
+}
+
 async function loadFallbackBlocks(info) {
+  const tip = Number(info.blocks || 0);
   try {
     const backendBlocks = await fetchJson(backendUrl('/api/v1/blocks'));
-    if (Array.isArray(backendBlocks) && backendBlocks.length) {
+    if (Array.isArray(backendBlocks) && backendBlocks.length && maxBlockHeight(backendBlocks) >= tip) {
       return sortBlocksOldestFirst(backendBlocks).slice(-8);
     }
   } catch {
@@ -414,20 +479,24 @@ async function loadFallbackBlocks(info) {
     // the blocks endpoint still has enough cached data for the first render.
   }
 
-  const tip = Number(info.blocks || 0);
   const start = Math.max(0, tip - 7);
   const blocks = [];
   for (let height = start; height <= tip; height += 1) {
     const hash = await rpcCall('getblockhash', [height]);
-    const block = await rpcCall('getblock', [hash, 1]);
-    blocks.push(blockFromCore(block));
+    const [block, stats] = await Promise.all([
+      rpcCall('getblockheader', [hash, true]),
+      rpcCall('getblockstats', [height]).catch(() => null),
+    ]);
+    blocks.push(blockFromCore(block, stats));
   }
   return sortBlocksOldestFirst(blocks);
 }
 
 async function fallbackBlocks(info = null) {
   const now = Date.now();
-  if (fallbackBlocksCache && now - fallbackBlocksCacheAt < fallbackCacheTtlMs) {
+  const blockchainInfo = info || await rpcCall('getblockchaininfo');
+  const tip = Number(blockchainInfo.blocks || 0);
+  if (fallbackBlocksCache && now - fallbackBlocksCacheAt < fallbackCacheTtlMs && maxBlockHeight(fallbackBlocksCache) >= tip) {
     return fallbackBlocksCache;
   }
   if (fallbackBlocksInFlight) {
@@ -435,7 +504,6 @@ async function fallbackBlocks(info = null) {
   }
 
   fallbackBlocksInFlight = (async () => {
-    const blockchainInfo = info || await rpcCall('getblockchaininfo');
     const blocks = await loadFallbackBlocks(blockchainInfo);
     fallbackBlocksCache = sortBlocksOldestFirst(blocks);
     fallbackBlocksCacheAt = Date.now();
@@ -464,12 +532,7 @@ async function fallbackResponse(urlPath, method = 'GET') {
   }
   if (isBlocksPath(cleanPath)) {
     if (cleanPath !== '/api/v1/blocks') {
-      const publicBlocks = await fetchJson(publicUrl(cleanPath));
-      return {
-        statusCode: 200,
-        headers: jsonHeaders(),
-        body: JSON.stringify(publicBlocks),
-      };
+      return null;
     }
     return {
       statusCode: 200,
@@ -523,20 +586,26 @@ async function fallbackResponse(urlPath, method = 'GET') {
       body: JSON.stringify(mempool.fees),
     };
   }
-  if (isPublicDataPath(cleanPath)) {
-    const publicData = await fetchJson(publicUrl(normalizedPath));
+  const blockSummaryMatch = cleanPath.match(/^\/api\/v1\/block\/([0-9a-fA-F]{64})\/summary$/);
+  if (blockSummaryMatch) {
+    const block = await loadCoreBlockWithTransactions(blockSummaryMatch[1]);
     return {
       statusCode: 200,
       headers: jsonHeaders(),
-      body: JSON.stringify(publicData),
+      body: JSON.stringify((block.tx || []).map(transformCoreTransactionSummary)),
     };
   }
-  if (method === 'GET' && publicFallbackEnabled && cleanPath.startsWith('/api/')) {
-    const publicData = await fetchJson(publicUrl(normalizedPath));
+  const blockTransactionsMatch = cleanPath.match(/^\/api\/block\/([0-9a-fA-F]{64})\/txs\/(\d+)$/);
+  if (blockTransactionsMatch) {
+    const block = await loadCoreBlockWithTransactions(blockTransactionsMatch[1]);
+    const start = Number(blockTransactionsMatch[2] || 0);
+    const transactions = (block.tx || [])
+      .slice(start, start + 25)
+      .map((tx) => transformCoreTransaction(tx, block));
     return {
       statusCode: 200,
       headers: jsonHeaders(),
-      body: JSON.stringify(publicData),
+      body: JSON.stringify(transactions),
     };
   }
   return null;
@@ -619,8 +688,30 @@ function attachFallbackWebsocket(socket) {
       socket.send(JSON.stringify({pong: true}));
     }
   }, 20000);
-  socket.on('close', () => clearInterval(heartbeat));
-  socket.on('error', () => clearInterval(heartbeat));
+  const liveUpdates = setInterval(() => {
+    if (socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    fallbackWebsocketPayload(['blocks', 'mempool-blocks', 'stats'])
+      .then((payload) => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify(payload));
+        }
+      })
+      .catch(() => {});
+  }, 5000);
+  const clearTimers = () => {
+    clearInterval(heartbeat);
+    clearInterval(liveUpdates);
+  };
+  socket.on('close', clearTimers);
+  socket.on('error', clearTimers);
+
+  fallbackWebsocketPayload(['init']).then((payload) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(payload));
+    }
+  }).catch(() => {});
 
   socket.on('message', (raw) => {
     let message = {};
@@ -663,15 +754,9 @@ function isBlocksPath(cleanPath) {
   return cleanPath === '/api/v1/blocks' || /^\/api\/v1\/blocks\/\d+$/.test(cleanPath);
 }
 
-function isPublicDataPath(cleanPath) {
-  return /^\/api\/v1\/block\/[0-9a-fA-F]{64}\/summary$/.test(cleanPath)
-    || /^\/api\/block\/[0-9a-fA-F]{64}\/txs\/\d+$/.test(cleanPath)
-    || cleanPath === '/api/v1/historical-price';
-}
-
 function prefersCoreFallback(urlPath) {
   const cleanPath = apiPath(urlPath).split('?')[0];
-  if (isBlocksPath(cleanPath) || isPublicDataPath(cleanPath)) {
+  if (isBlocksPath(cleanPath) || isCoreBlockDataPath(cleanPath)) {
     return true;
   }
   return [
@@ -682,6 +767,11 @@ function prefersCoreFallback(urlPath) {
     '/api/v1/fees/recommended',
     '/api/v1/fees/precise',
   ].includes(cleanPath);
+}
+
+function isCoreBlockDataPath(cleanPath) {
+  return /^\/api\/v1\/block\/[0-9a-fA-F]{64}\/summary$/.test(cleanPath)
+    || /^\/api\/block\/[0-9a-fA-F]{64}\/txs\/\d+$/.test(cleanPath);
 }
 
 async function isInitialBlockDownload() {
@@ -720,10 +810,7 @@ function shouldUseFallback(urlPath, statusCode, body) {
       return true;
     }
   }
-  if ((isBlocksPath(cleanPath) || isPublicDataPath(cleanPath)) && (statusCode >= 400 || !text || text === '[]')) {
-    return true;
-  }
-  if (publicFallbackEnabled && cleanPath.startsWith('/api/') && statusCode >= 400) {
+  if ((isBlocksPath(cleanPath) || isCoreBlockDataPath(cleanPath)) && (statusCode >= 400 || !text || text === '[]')) {
     return true;
   }
   return false;
@@ -732,21 +819,24 @@ function shouldUseFallback(urlPath, statusCode, body) {
 function proxyHttp(req, res) {
   logRequest(`http ${req.method} ${req.url} api=${isBackendRequest(req.url || '/')} normalized=${apiPath(req.url || '/')}`);
   if (prefersCoreFallback(req.url || '/')) {
-    isInitialBlockDownload().then((isIbd) => {
-      if (!isIbd) {
+    fallbackResponse(req.url || '/', req.method).then((fallback) => {
+      if (!fallback) {
         proxyHttpToBackend(req, res);
         return;
       }
-        return fallbackResponse(req.url || '/', req.method).then((fallback) => {
-        if (!fallback) {
-          proxyHttpToBackend(req, res);
-          return;
-        }
-        logRequest(`fallback response ${apiPath(req.url || '/').split('?')[0]} bytes=${Buffer.byteLength(fallback.body)}`);
-        res.writeHead(fallback.statusCode, fallback.headers);
-        res.end(fallback.body);
-      });
-    }).catch(() => proxyHttpToBackend(req, res));
+      logRequest(`fallback response ${apiPath(req.url || '/').split('?')[0]} bytes=${Buffer.byteLength(fallback.body)}`);
+      res.writeHead(fallback.statusCode, fallback.headers);
+      res.end(fallback.body);
+    }).catch((error) => {
+      logRequest(`fallback failed ${apiPath(req.url || '/').split('?')[0]} ${error.message}`);
+      const cleanPath = apiPath(req.url || '/').split('?')[0];
+      if (cleanPath === '/api/v1/blocks' && fallbackBlocksCache) {
+        res.writeHead(200, jsonHeaders());
+        res.end(JSON.stringify(fallbackBlocksCache));
+        return;
+      }
+      proxyHttpToBackend(req, res);
+    });
     return;
   }
 

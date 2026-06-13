@@ -32,4 +32,5 @@ private:
     QTimer m_backendHealth;
     QTimer m_frontendHealth;
     QNetworkAccessManager m_network;
+    bool m_startRequested = false;
 };

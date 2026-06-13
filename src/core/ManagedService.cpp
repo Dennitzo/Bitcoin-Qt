@@ -52,11 +52,11 @@ ServiceStatus ManagedService::status() const
 
 void ManagedService::stop()
 {
-    m_stopping = true;
+    beginManualStop();
     m_restartTimer.stop();
     if (m_process.state() == QProcess::NotRunning) {
         setState(ServiceState::Stopped, "Gestoppt");
-        m_stopping = false;
+        endManualStop();
         return;
     }
 
@@ -64,8 +64,9 @@ void ManagedService::stop()
     m_process.terminate();
     if (!m_process.waitForFinished(3000)) {
         m_process.kill();
+        m_process.waitForFinished(1000);
     }
-    m_stopping = false;
+    endManualStop();
 }
 
 void ManagedService::restart()
@@ -124,6 +125,21 @@ void ManagedService::scheduleRestart()
     }
 }
 
+void ManagedService::beginManualStop()
+{
+    m_stopping = true;
+}
+
+void ManagedService::endManualStop()
+{
+    m_stopping = false;
+}
+
+bool ManagedService::isManualStopRequested() const
+{
+    return m_stopping;
+}
+
 QProcess& ManagedService::process()
 {
     return m_process;
@@ -174,6 +190,9 @@ void ManagedService::connectProcess()
     });
     QObject::connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         Q_UNUSED(error)
+        if (m_stopping) {
+            return;
+        }
         const QString message = m_process.errorString();
         logs().append(m_id, message);
         setState(ServiceState::Error, message);

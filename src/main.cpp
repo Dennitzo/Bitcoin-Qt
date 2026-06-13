@@ -22,7 +22,7 @@ void configureProcessLogging()
     if (!chromiumFlags.isEmpty()) {
         chromiumFlags.append(' ');
     }
-    chromiumFlags.append("--disable-logging --log-level=3 --disable-speech-api");
+    chromiumFlags.append("--disable-logging --log-level=3 --disable-speech-api --disable-features=ScreenCaptureKitMacScreen");
     qputenv("QTWEBENGINE_CHROMIUM_FLAGS", chromiumFlags);
 }
 
