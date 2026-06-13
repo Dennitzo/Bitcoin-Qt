@@ -91,6 +91,7 @@ inline QString appServiceDetail(const QString& language, const QString& detail)
     if (detail == "Stratum und UI erreichbar") return "Stratum and UI reachable";
     if (detail == "Public Pool Prozessfehler") return "Public Pool process error";
     if (detail == "Warte auf Bitcoin Core RPC") return "Waiting for Bitcoin Core RPC";
+    if (detail == "Warte auf Bitcoin Core Sync") return "Waiting for Bitcoin Core sync";
     if (detail == "Indexiert Blockchain") return "Indexing blockchain";
     if (detail == "Bereit") return "Ready";
     if (detail == "Electrum bereit") return "Electrum ready";

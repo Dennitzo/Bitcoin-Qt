@@ -20,6 +20,7 @@ public:
     ServiceState state() const;
     QString detail() const;
     ServiceStatus status() const;
+    void markWaiting(const QString& detail);
 
     virtual void start() = 0;
     virtual void stop();

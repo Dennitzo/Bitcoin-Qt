@@ -94,6 +94,7 @@ void BitcoinCoreService::applyRpcResult(const QString& method, const QJsonValue&
         m_status.blockHeight = object.value("blocks").toInt();
         m_status.verificationProgress = object.value("verificationprogress").toDouble();
         m_status.network = object.value("chain").toString("main");
+        m_status.initialBlockDownload = object.value("initialblockdownload").toBool(true);
     } else if (method == "getnetworkinfo") {
         m_status.peers = value.toObject().value("connections").toInt();
     }

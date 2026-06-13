@@ -140,7 +140,7 @@ class DatabaseMigration {
       await this.$executeQuery('ALTER TABLE blocks MODIFY `weight` integer unsigned NOT NULL DEFAULT "0"');
       await this.$executeQuery('ALTER TABLE blocks MODIFY `difficulty` double NOT NULL DEFAULT "0"');
       // We also fix the pools.id type so we need to drop/re-create the foreign key
-      await this.$dropPoolForeignKeys('blocks', 'pool_id');
+      await this.$executeQuery('ALTER TABLE blocks DROP FOREIGN KEY IF EXISTS `blocks_ibfk_1`');
       await this.$executeQuery('ALTER TABLE pools MODIFY `id` smallint unsigned AUTO_INCREMENT');
       await this.$executeQuery('ALTER TABLE blocks MODIFY `pool_id` smallint unsigned NULL');
       await this.$executeQuery('ALTER TABLE blocks ADD FOREIGN KEY (`pool_id`) REFERENCES `pools` (`id`)');
@@ -212,7 +212,7 @@ class DatabaseMigration {
     if (databaseSchemaVersion < 14 && isBitcoin === true) {
       this.uniqueLog(logger.notice, this.hashratesTruncatedMessage);
       await this.$executeQuery('TRUNCATE hashrates;'); // Need to re-index
-      await this.$dropPoolForeignKeys('hashrates', 'pool_id');
+      await this.$executeQuery('ALTER TABLE `hashrates` DROP FOREIGN KEY `hashrates_ibfk_1`');
       await this.$executeQuery('ALTER TABLE `hashrates` MODIFY `pool_id` SMALLINT UNSIGNED NOT NULL DEFAULT "0"');
       await this.updateToSchemaVersion(14);
     }
@@ -449,7 +449,7 @@ class DatabaseMigration {
     }
 
     if (databaseSchemaVersion < 50) {
-      await this.$executeQuery('ALTER TABLE `blocks` DROP COLUMN IF EXISTS `cpfp_indexed`');
+      await this.$executeQuery('ALTER TABLE `blocks` DROP COLUMN `cpfp_indexed`');
       await this.updateToSchemaVersion(50);
     }
 
@@ -819,7 +819,7 @@ class DatabaseMigration {
         await this.$executeQuery('ALTER TABLE blocks MODIFY `size` integer unsigned NOT NULL DEFAULT "0"');
         await this.$executeQuery('ALTER TABLE blocks MODIFY `weight` integer unsigned NOT NULL DEFAULT "0"');
         await this.$executeQuery('ALTER TABLE blocks MODIFY `difficulty` double NOT NULL DEFAULT "0"');
-        await this.$dropPoolForeignKeys('blocks', 'pool_id');
+        await this.$executeQuery('ALTER TABLE blocks DROP FOREIGN KEY IF EXISTS `blocks_ibfk_1`');
         await this.$executeQuery('ALTER TABLE pools MODIFY `id` smallint unsigned AUTO_INCREMENT');
         await this.$executeQuery('ALTER TABLE blocks MODIFY `pool_id` smallint unsigned NULL');
         await this.$executeQuery('ALTER TABLE blocks ADD FOREIGN KEY (`pool_id`) REFERENCES `pools` (`id`)');
@@ -865,7 +865,7 @@ class DatabaseMigration {
         await this.$executeQuery('ALTER TABLE blocks MODIFY `avg_fee_rate` BIGINT UNSIGNED NOT NULL DEFAULT "0"');
 
         // Version 14
-        await this.$dropPoolForeignKeys('hashrates', 'pool_id');
+        await this.$executeQuery('ALTER TABLE `hashrates` DROP FOREIGN KEY `hashrates_ibfk_1`');
         await this.$executeQuery('ALTER TABLE `hashrates` MODIFY `pool_id` SMALLINT UNSIGNED NOT NULL DEFAULT "0"');
 
         // Version 17
@@ -1224,7 +1224,7 @@ class DatabaseMigration {
     }
 
     if (databaseSchemaVersion < 107) {
-      await this.$dropForeignKeys('federation_txos', 'bitcoinaddress', 'federation_addresses', 'bitcoinaddress');
+      await this.$executeQuery('ALTER TABLE `federation_txos` DROP FOREIGN KEY IF EXISTS `federation_txos_ibfk_1`');
       await this.$executeQuery('DROP TABLE IF EXISTS `federation_addresses`');
       await this.updateToSchemaVersion(107);
     }
@@ -1286,26 +1286,6 @@ class DatabaseMigration {
       // any query related to this indexing so it won't fail if the index actually already exists
       logger.err('MIGRATIONS: Unable to check if `statistics.added` INDEX exist or not.');
       this.statisticsAddedIndexed = true;
-    }
-  }
-
-  private async $dropPoolForeignKeys(tableName: string, columnName: string): Promise<void> {
-    await this.$dropForeignKeys(tableName, columnName, 'pools', 'id');
-  }
-
-  private async $dropForeignKeys(tableName: string, columnName: string, referencedTable: string, referencedColumn: string): Promise<void> {
-    const query = `
-      SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = '${tableName}'
-        AND COLUMN_NAME = '${columnName}'
-        AND REFERENCED_TABLE_NAME = '${referencedTable}'
-        AND REFERENCED_COLUMN_NAME = '${referencedColumn}';
-    `;
-    const [rows] = await this.$executeQuery(query, true);
-    for (const row of rows as RowDataPacket[]) {
-      const constraintName = String(row.CONSTRAINT_NAME).replace(/`/g, '``');
-      await this.$executeQuery(`ALTER TABLE \`${tableName}\` DROP FOREIGN KEY \`${constraintName}\``);
     }
   }
 

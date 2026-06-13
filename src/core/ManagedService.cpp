@@ -50,6 +50,13 @@ ServiceStatus ManagedService::status() const
     return ServiceStatus{m_id, m_label, m_state, m_detail, QDateTime::currentDateTimeUtc()};
 }
 
+void ManagedService::markWaiting(const QString& detail)
+{
+    if (m_process.state() == QProcess::NotRunning) {
+        setState(ServiceState::Starting, detail);
+    }
+}
+
 void ManagedService::stop()
 {
     beginManualStop();

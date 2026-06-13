@@ -21,7 +21,7 @@ the full node data should live outside the system disk.
 - Per-service start/stop controls and persisted service state
 - First-run disk selection for running the full node from an external drive
 - Dashboard with Bitcoin Core sync progress, peer count, Mempool state, Public
-  Pool state, Mempool database state, and storage usage
+  Pool state, and storage usage
 - Dedicated sidebar pages for Dashboard, Bitcoind logs, electrs logs, Mempool,
   Public Pool, and Settings
 - Persisted WebView navigation for Mempool and Public Pool pages
@@ -42,41 +42,41 @@ Configure and build with a Qt installation available through
 `CMAKE_PREFIX_PATH`:
 
 ```bash
-cmake -S . -B build/qt-node-desktop \
+cmake -S . -B build/Bitcoin-Qt \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH="/path/to/Qt/6.x/<platform>"
 
-cmake --build build/qt-node-desktop
+cmake --build build/Bitcoin-Qt
 ```
 
 If Qt is already discoverable by CMake, the shorter form works:
 
 ```bash
-cmake -S . -B build/qt-node-desktop -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/qt-node-desktop
+cmake -S . -B build/Bitcoin-Qt -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/Bitcoin-Qt
 ```
 
 Example macOS command when CMake was installed as an app bundle:
 
 ```bash
-/Applications/CMake.app/Contents/bin/cmake -S . -B build/qt-node-desktop \
+/Applications/CMake.app/Contents/bin/cmake -S . -B build/Bitcoin-Qt \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH="$HOME/Qt/6.8.3/macos"
 
-/Applications/CMake.app/Contents/bin/cmake --build build/qt-node-desktop
+/Applications/CMake.app/Contents/bin/cmake --build build/Bitcoin-Qt
 ```
 
 Run the built app:
 
 ```bash
 # macOS
-./build/qt-node-desktop/Bitcoin-Qt.app/Contents/MacOS/Bitcoin-Qt
+./build/Bitcoin-Qt/Bitcoin-Qt.app/Contents/MacOS/Bitcoin-Qt
 
 # Linux
-./build/qt-node-desktop/Bitcoin-Qt
+./build/Bitcoin-Qt/Bitcoin-Qt
 
 # Windows
-.\build\qt-node-desktop\Debug\Bitcoin-Qt.exe
+.\build\Bitcoin-Qt\Debug\Bitcoin-Qt.exe
 ```
 
 ## Runtime
@@ -159,11 +159,17 @@ last selected start/stop state per service and restores it on the next launch.
 The expected dependency order is:
 
 1. Start Bitcoin Core.
-2. Wait until Bitcoin Core RPC is available.
+2. Wait until Bitcoin Core RPC is available and initial block download is
+   complete.
 3. Start electrs.
-4. Start the Mempool database.
-5. Start Mempool after the database is reachable.
+4. Start the Mempool database as an internal dependency of Mempool.
+5. Start Mempool backend and frontend after MariaDB and electrs are reachable.
 6. Start Public Pool after Bitcoin Core RPC is reachable.
+
+Mempool uses the standard local Mempool backend, frontend, and MariaDB stack.
+Bitcoin-Qt does not provide public mempool fallbacks or Bitcoin Core API
+substitutes for Mempool while Bitcoin Core is still syncing; Electrs and
+Mempool wait until the local node is fully synced.
 
 Mempool and Public Pool are loaded locally in embedded Qt WebEngine views. The
 app is designed to keep these pages inside Bitcoin-Qt instead of opening an

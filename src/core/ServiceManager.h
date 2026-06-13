@@ -40,6 +40,8 @@ Q_SIGNALS:
 
 private:
     void wireService(ManagedService& service);
+    bool bitcoinIsSynced() const;
+    void startSyncedDependents();
 
     ConfigManager& m_config;
     BitcoinCoreService m_bitcoin;

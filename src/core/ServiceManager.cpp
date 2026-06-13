@@ -17,7 +17,12 @@ ServiceManager::ServiceManager(ConfigManager& config, LogManager& logs, QObject*
     wireService(m_mempool);
     wireService(m_publicPool);
 
-    QObject::connect(&m_bitcoin, &BitcoinCoreService::nodeStatusChanged, this, &ServiceManager::bitcoinStatusChanged);
+    QObject::connect(&m_bitcoin, &BitcoinCoreService::nodeStatusChanged, this, [this](const BitcoinNodeStatus& status) {
+        Q_EMIT bitcoinStatusChanged(status);
+        if (status.rpcAvailable && !status.initialBlockDownload) {
+            startSyncedDependents();
+        }
+    });
     QObject::connect(&m_mempool, &MempoolService::frontendAvailable, this, &ServiceManager::mempoolFrontendAvailable);
     QObject::connect(&m_publicPool, &PublicPoolService::frontendAvailable, this, &ServiceManager::publicPoolFrontendAvailable);
 }
@@ -25,9 +30,11 @@ ServiceManager::ServiceManager(ConfigManager& config, LogManager& logs, QObject*
 void ServiceManager::startAll()
 {
     m_bitcoin.start();
-    m_electrs.start();
-    m_mempoolDatabase.start();
-    m_mempool.start();
+    if (bitcoinIsSynced()) {
+        m_electrs.start();
+        m_mempoolDatabase.start();
+        m_mempool.start();
+    }
     m_publicPool.start();
 }
 
@@ -36,13 +43,14 @@ void ServiceManager::startConfiguredServices()
     if (m_config.serviceEnabled("bitcoind")) {
         m_bitcoin.start();
     }
-    if (m_config.serviceEnabled("electrs")) {
+    if ((m_config.serviceEnabled("electrs") || m_config.serviceEnabled("mempool")) && m_bitcoin.state() == ServiceState::Stopped) {
+        m_bitcoin.start();
+    }
+    if (bitcoinIsSynced() && m_config.serviceEnabled("electrs")) {
         m_electrs.start();
     }
-    if (m_config.serviceEnabled("mempool-db") || m_config.serviceEnabled("mempool")) {
+    if (bitcoinIsSynced() && m_config.serviceEnabled("mempool")) {
         m_mempoolDatabase.start();
-    }
-    if (m_config.serviceEnabled("mempool")) {
         m_mempool.start();
     }
     if (m_config.serviceEnabled("public-pool")) {
@@ -72,15 +80,31 @@ void ServiceManager::startService(const QString& id)
         m_bitcoin.start();
     } else if (id == "electrs") {
         m_config.setServiceEnabled(id, true);
+        if (!bitcoinIsSynced()) {
+            if (m_bitcoin.state() == ServiceState::Stopped) {
+                m_bitcoin.start();
+            }
+            m_electrs.markWaiting("Warte auf Bitcoin Core Sync");
+            return;
+        }
         m_electrs.start();
     } else if (id == "mempool") {
         m_config.setServiceEnabled(id, true);
         m_config.setServiceEnabled("mempool-db", true);
+        m_config.setServiceEnabled("electrs", true);
+        if (!bitcoinIsSynced()) {
+            if (m_bitcoin.state() == ServiceState::Stopped) {
+                m_bitcoin.start();
+            }
+            m_electrs.markWaiting("Warte auf Bitcoin Core Sync");
+            m_mempool.markWaiting("Warte auf Bitcoin Core Sync");
+            return;
+        }
+        m_electrs.start();
         m_mempoolDatabase.start();
         m_mempool.start();
     } else if (id == "mempool-db") {
-        m_config.setServiceEnabled(id, true);
-        m_mempoolDatabase.start();
+        startService("mempool");
     } else if (id == "public-pool") {
         m_config.setServiceEnabled(id, true);
         m_publicPool.start();
@@ -97,14 +121,31 @@ void ServiceManager::stopService(const QString& id)
         m_electrs.stop();
     } else if (id == "mempool") {
         m_config.setServiceEnabled(id, false);
-        m_mempool.stop();
-    } else if (id == "mempool-db") {
-        m_config.setServiceEnabled(id, false);
+        m_config.setServiceEnabled("mempool-db", false);
         m_mempool.stop();
         m_mempoolDatabase.stop();
+    } else if (id == "mempool-db") {
+        stopService("mempool");
     } else if (id == "public-pool") {
         m_config.setServiceEnabled(id, false);
         m_publicPool.stop();
+    }
+}
+
+bool ServiceManager::bitcoinIsSynced() const
+{
+    const BitcoinNodeStatus status = m_bitcoin.nodeStatus();
+    return status.rpcAvailable && !status.initialBlockDownload;
+}
+
+void ServiceManager::startSyncedDependents()
+{
+    if (m_config.serviceEnabled("electrs")) {
+        m_electrs.start();
+    }
+    if (m_config.serviceEnabled("mempool")) {
+        m_mempoolDatabase.start();
+        m_mempool.start();
     }
 }
 
@@ -115,7 +156,7 @@ BitcoinNodeStatus ServiceManager::bitcoinStatus() const
 
 QList<ServiceStatus> ServiceManager::statuses() const
 {
-    return {m_bitcoin.status(), m_electrs.status(), m_mempoolDatabase.status(), m_mempool.status(), m_publicPool.status()};
+    return {m_bitcoin.status(), m_electrs.status(), m_mempool.status(), m_publicPool.status()};
 }
 
 QUrl ServiceManager::mempoolUrl() const

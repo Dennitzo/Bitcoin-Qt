@@ -78,7 +78,6 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     m_network = createMetricLabel(text("dashboard.network"), "unknown", this);
     m_bitcoin = createMetricLabel("Bitcoin Core", text("state.stopped"), this);
     m_electrs = createMetricLabel("Electrs", text("state.stopped"), this);
-    m_mempoolDatabase = createMetricLabel("Mempool DB", text("state.stopped"), this);
     m_mempool = createMetricLabel("Mempool", text("dashboard.offline"), this);
     m_publicPool = createMetricLabel("Public Pool", text("dashboard.offline"), this);
     auto* syncWidget = new QWidget(this);
@@ -108,7 +107,6 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     const QList<QPair<QString, QLabel*>> services{
         {"bitcoind", m_bitcoin},
         {"electrs", m_electrs},
-        {"mempool-db", m_mempoolDatabase},
         {"mempool", m_mempool},
         {"public-pool", m_publicPool},
     };
@@ -134,7 +132,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
         QObject::connect(stop, &QPushButton::clicked, this, [this, id = services.at(i).first]() {
             Q_EMIT stopServiceRequested(id);
         });
-        servicesGrid->addWidget(createCard(wrapper, this, 168), i / 5, i % 5);
+        servicesGrid->addWidget(createCard(wrapper, this, 168), i / 4, i % 4);
     }
     root->addLayout(servicesGrid);
     root->addStretch();
@@ -163,17 +161,15 @@ void DashboardPage::updateServiceStatus(const ServiceStatus& status)
         target = m_bitcoin;
     } else if (status.id == "electrs") {
         target = m_electrs;
-    } else if (status.id == "mempool-db") {
-        target = m_mempoolDatabase;
     } else if (status.id == "mempool") {
         target = m_mempool;
     } else if (status.id == "public-pool") {
         target = m_publicPool;
     }
+    m_serviceStatuses.insert(status.id, status);
     if (!target) {
         return;
     }
-    m_serviceStatuses.insert(status.id, status);
     target->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>%1</span><br><b style='font-size:24px'>%2</b><br><span style='color:#8a93a3'>%3</span>")
         .arg(status.label, stateText(status.state), appServiceDetail(language(), status.detail)));
     if (auto* start = m_startButtons.value(status.id, nullptr)) {

@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcessEnvironment>
 
 namespace {
 bool hasIndexedHeader(const QByteArray& response)
@@ -36,8 +37,13 @@ ElectrsService::ElectrsService(ConfigManager& config, LogManager& logs, QObject*
 
     m_readinessTimer.setInterval(5000);
     QObject::connect(&m_readinessTimer, &QTimer::timeout, this, &ElectrsService::checkBitcoinRpc);
-    QObject::connect(&m_rpc, &RpcClient::result, this, [this](const QString& method, const QJsonValue&) {
+    QObject::connect(&m_rpc, &RpcClient::result, this, [this](const QString& method, const QJsonValue& value) {
         if (!m_startRequested || method != "getblockchaininfo") {
+            return;
+        }
+        const QJsonObject info = value.toObject();
+        if (info.value("initialblockdownload").toBool(true)) {
+            setState(ServiceState::Starting, "Warte auf Bitcoin Core Sync");
             return;
         }
         m_readinessTimer.stop();
@@ -62,7 +68,7 @@ void ElectrsService::start()
         setState(ServiceState::Error, "Electrs RPC-Cookie konnte nicht geschrieben werden");
         return;
     }
-    setState(ServiceState::Starting, "Warte auf Bitcoin Core RPC");
+    setState(ServiceState::Starting, "Warte auf Bitcoin Core Sync");
     checkBitcoinRpc();
     m_readinessTimer.start();
 }
@@ -81,6 +87,9 @@ void ElectrsService::startElectrsProcess()
     if (!m_startRequested || process().state() != QProcess::NotRunning) {
         return;
     }
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("RUST_LOG", "electrs=debug,bitcoin=info,rocksdb=info");
+    process().setProcessEnvironment(env);
     startProcess(config().electrsExecutable(), arguments(), config().electrsDataDir());
     m_healthTimer.start();
 }
@@ -94,7 +103,6 @@ QStringList ElectrsService::arguments() const
         QString("--electrum-rpc-addr=127.0.0.1:%1").arg(config().electrsPort()),
         "--wait-duration-secs=5",
         "--jsonrpc-timeout-secs=60",
-        "--skip-block-download-wait",
     };
 }
 
@@ -148,9 +156,6 @@ void ElectrsService::checkPort()
 
 void ElectrsService::handleStdout(const QString& line)
 {
-    if (line.contains("failed to shutdown TCP receiving Socket is not connected", Qt::CaseInsensitive)) {
-        return;
-    }
     ManagedService::handleStdout(line);
     if (line.contains("index", Qt::CaseInsensitive)) {
         setState(ServiceState::Indexing, "Indexiert Blockchain");

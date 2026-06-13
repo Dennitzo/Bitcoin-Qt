@@ -26,6 +26,7 @@ struct BitcoinNodeStatus {
     double verificationProgress = 0.0;
     QString network = "unknown";
     bool rpcAvailable = false;
+    bool initialBlockDownload = true;
 };
 
 struct ServiceStatus {
