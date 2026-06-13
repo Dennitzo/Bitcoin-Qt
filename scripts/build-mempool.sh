@@ -45,7 +45,26 @@ const path = 'rust/gbt/package.json';
 const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
 pkg.scripts['check-cargo-version'] = 'cargo version';
 pkg.scripts['build-release'] = 'npm run build -- --release';
+pkg.scripts['to-backend'] = 'node copy-to-backend.js';
 fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+fs.writeFileSync('rust/gbt/copy-to-backend.js', `
+const fs = require('fs');
+const path = require('path');
+
+const dest = path.resolve(__dirname, '../../backend/rust-gbt');
+fs.rmSync(dest, {recursive: true, force: true});
+fs.mkdirSync(dest, {recursive: true});
+
+for (const name of ['index.js', 'index.d.ts', 'package.json']) {
+  fs.copyFileSync(path.join(__dirname, name), path.join(dest, name));
+}
+
+for (const name of fs.readdirSync(__dirname)) {
+  if (name.endsWith('.node')) {
+    fs.copyFileSync(path.join(__dirname, name), path.join(dest, name));
+  }
+}
+`);
 JS
     ;;
 esac
@@ -57,7 +76,11 @@ for package_dir in backend frontend; do
   else
     "$NPM" install
   fi
-  "$NPM" run build
+  if [[ "$package_dir" == "frontend" ]]; then
+    SKIP_SYNC=1 "$NPM" run build
+  else
+    "$NPM" run build
+  fi
 done
 
 rm -rf "$PREFIX"
