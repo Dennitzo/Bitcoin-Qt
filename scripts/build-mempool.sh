@@ -22,6 +22,18 @@ cd "$BUILD_DIR/mempool"
 git fetch --tags --prune
 git checkout "$REF"
 
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    "$NODE" <<'JS'
+const fs = require('fs');
+const path = 'rust/gbt/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.scripts['check-cargo-version'] = 'cargo version';
+fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+JS
+    ;;
+esac
+
 for package_dir in backend frontend; do
   cd "$BUILD_DIR/mempool/$package_dir"
   if [[ -f package-lock.json ]]; then
