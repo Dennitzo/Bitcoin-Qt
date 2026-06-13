@@ -13,7 +13,9 @@ defaults:
 
 env:
   BUILD_TYPE: Release
-  QT_VERSION: "6.8.3"
+  # Qt 6.8 moved WebEngine into extensions, which currently breaks aqt-based
+  # Linux installs in install-qt-action. Qt 6.7.x still supports Linux ARM64.
+  QT_VERSION: "6.7.3"
 
 jobs:
   build:
@@ -76,7 +78,7 @@ jobs:
           host: ${{ matrix.qt-host }}
           target: desktop
           arch: ${{ matrix.qt-arch }}
-          modules: qtwebengine qtwebchannel
+          modules: qtwebengine qtwebchannel qtpositioning
           cache: true
 
       - name: Build
