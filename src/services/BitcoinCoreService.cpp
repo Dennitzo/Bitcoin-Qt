@@ -34,6 +34,10 @@ void BitcoinCoreService::stop()
 {
     m_pollTimer.stop();
     m_rpc.abortPendingRequests();
+    m_rpcFailureCount = 0;
+    m_status.rpcAvailable = false;
+    m_status.peers = 0;
+    Q_EMIT nodeStatusChanged(m_status);
     ManagedService::stop();
 }
 

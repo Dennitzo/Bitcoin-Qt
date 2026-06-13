@@ -142,6 +142,14 @@ void ServiceManager::stopService(const QString& id)
 {
     if (id == "bitcoind") {
         m_config.setServiceEnabled(id, false);
+        m_config.setServiceEnabled("electrs", false);
+        m_config.setServiceEnabled("mempool", false);
+        m_config.setServiceEnabled("mempool-db", false);
+        m_config.setServiceEnabled("public-pool", false);
+        m_publicPool.stop();
+        m_mempool.stop();
+        m_mempoolDatabase.stop();
+        m_electrs.stop();
         m_bitcoin.stop();
     } else if (id == "electrs") {
         m_config.setServiceEnabled(id, false);

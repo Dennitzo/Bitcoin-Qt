@@ -84,7 +84,7 @@ MempoolDatabaseService::MempoolDatabaseService(ConfigManager& config, LogManager
     });
 
     QObject::connect(&process(), qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this](int exitCode, QProcess::ExitStatus exitStatus) {
-        if (!m_startRequested || (exitStatus != QProcess::CrashExit && exitCode == 0)) {
+        if (!m_startRequested || isManualStopRequested() || (exitStatus != QProcess::CrashExit && exitCode == 0)) {
             return;
         }
 

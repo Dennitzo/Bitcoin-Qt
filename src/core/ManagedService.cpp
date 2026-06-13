@@ -73,6 +73,7 @@ void ManagedService::stop()
         m_process.kill();
         m_process.waitForFinished(1000);
     }
+    setState(ServiceState::Stopped, "Gestoppt");
     endManualStop();
 }
 
@@ -207,7 +208,7 @@ void ManagedService::connectProcess()
         scheduleRestart();
     });
     QObject::connect(&m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this](int exitCode, QProcess::ExitStatus exitStatus) {
-        const bool crashed = exitStatus == QProcess::CrashExit || (!m_stopping && exitCode != 0);
+        const bool crashed = !m_stopping && (exitStatus == QProcess::CrashExit || exitCode != 0);
         if (crashed) {
             const QString message = QString("%1 beendet mit Code %2").arg(m_label).arg(exitCode);
             logs().append(m_id, message);
