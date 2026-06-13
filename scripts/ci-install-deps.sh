@@ -65,7 +65,9 @@ case "$(uname -s)" in
     fi
     ;;
   MINGW*|MSYS*|CYGWIN*)
-    choco install make pkgconfiglite rust -y --no-progress
+    choco install make pkgconfiglite -y --no-progress
+    rustup default stable-x86_64-pc-windows-msvc
+    rustup target add x86_64-pc-windows-msvc
     PYTHON_VENV="$HOME/.bitcoinqt-ci-python"
     python3 -m venv "$PYTHON_VENV"
     "$PYTHON_VENV/Scripts/python" -m pip install --upgrade pip setuptools
