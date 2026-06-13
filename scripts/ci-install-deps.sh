@@ -44,6 +44,11 @@ case "$(uname -s)" in
     fi
     ;;
   Darwin)
+    for package in autoconf automake libtool pkg-config; do
+      if ! brew list --versions "$package" >/dev/null 2>&1; then
+        brew install "$package"
+      fi
+    done
     if ! command -v cmake >/dev/null 2>&1; then
       brew install cmake
     fi
@@ -61,6 +66,14 @@ case "$(uname -s)" in
     ;;
   MINGW*|MSYS*|CYGWIN*)
     choco install make pkgconfiglite rust -y --no-progress
+    PYTHON_VENV="$HOME/.bitcoinqt-ci-python"
+    python3 -m venv "$PYTHON_VENV"
+    "$PYTHON_VENV/Scripts/python" -m pip install --upgrade pip setuptools
+    if [[ -n "${GITHUB_PATH:-}" ]]; then
+      echo "$PYTHON_VENV/Scripts" >> "$GITHUB_PATH"
+    else
+      export PATH="$PYTHON_VENV/Scripts:$PATH"
+    fi
     ;;
   *)
     echo "Unsupported CI platform: $(uname -s)" >&2

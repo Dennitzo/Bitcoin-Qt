@@ -34,6 +34,8 @@ export LC_CTYPE=C
 
 if [[ -x "$HOME/.bitcoinqt-ci-python/bin/python3" ]]; then
   export PATH="$HOME/.bitcoinqt-ci-python/bin:$PATH"
+elif [[ -x "$HOME/.bitcoinqt-ci-python/Scripts/python3" || -x "$HOME/.bitcoinqt-ci-python/Scripts/python" ]]; then
+  export PATH="$HOME/.bitcoinqt-ci-python/Scripts:$PATH"
 fi
 
 for tool in pkg-config make; do
