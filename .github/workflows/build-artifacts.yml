@@ -1,0 +1,97 @@
+name: Build Artifacts
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUILD_TYPE: Release
+  QT_VERSION: "6.8.3"
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS x64
+            runner: macos-13
+            qt-host: mac
+            qt-arch: clang_64
+            artifact: bitcoin-qt-macos-x64
+          - label: macOS ARM64
+            runner: macos-14
+            qt-host: mac
+            qt-arch: clang_64
+            artifact: bitcoin-qt-macos-arm64
+          - label: Linux x64
+            runner: ubuntu-24.04
+            qt-host: linux
+            qt-arch: gcc_64
+            artifact: bitcoin-qt-linux-x64
+          - label: Linux ARM64
+            runner: ubuntu-24.04-arm
+            qt-host: linux_arm64
+            qt-arch: linux_gcc_arm64
+            artifact: bitcoin-qt-linux-arm64
+          - label: Windows x64
+            runner: windows-2022
+            qt-host: windows
+            qt-arch: win64_msvc2022_64
+            msvc-arch: x64
+            artifact: bitcoin-qt-windows-x64
+          - label: Windows ARM64
+            runner: windows-11-arm
+            qt-host: windows_arm64
+            qt-arch: win64_msvc2022_arm64
+            msvc-arch: arm64
+            artifact: bitcoin-qt-windows-arm64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: ./scripts/ci-install-deps.sh
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc-arch }}
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: ${{ matrix.qt-host }}
+          target: desktop
+          arch: ${{ matrix.qt-arch }}
+          modules: qtwebengine qtwebchannel
+          cache: true
+
+      - name: Build
+        run: ./scripts/build-app.sh
+
+      - name: Package
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+        run: ./scripts/package-artifact.sh
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            build/dist/${{ matrix.artifact }}.tar.gz
+            build/dist/${{ matrix.artifact }}.zip
+          if-no-files-found: error
