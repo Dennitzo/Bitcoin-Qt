@@ -27,18 +27,21 @@ jobs:
             qt-version: "6.7.3"
             qt-host: mac
             qt-arch: clang_64
+            build-runtime: false
             artifact: bitcoin-qt-macos-x64
           - label: macOS ARM64
             runner: macos-14
             qt-version: "6.7.3"
             qt-host: mac
             qt-arch: clang_64
+            build-runtime: true
             artifact: bitcoin-qt-macos-arm64
           - label: Linux x64
             runner: ubuntu-24.04
             qt-version: "6.7.3"
             qt-host: linux
             qt-arch: linux_gcc_64
+            build-runtime: true
             artifact: bitcoin-qt-linux-x64
           - label: Windows x64
             runner: windows-2022
@@ -46,6 +49,7 @@ jobs:
             qt-host: windows
             qt-arch: win64_msvc2019_64
             msvc-arch: x64
+            build-runtime: true
             artifact: bitcoin-qt-windows-x64
 
     steps:
@@ -70,6 +74,10 @@ jobs:
           arch: ${{ matrix.qt-arch }}
           modules: qtwebengine qtwebchannel qtpositioning
           cache: true
+
+      - name: Build runtime
+        if: matrix.build-runtime == true
+        run: ./scripts/build-runtime.sh
 
       - name: Build
         run: ./scripts/build-app.sh

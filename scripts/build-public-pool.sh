@@ -46,11 +46,8 @@ fi
 rm -rf "$RUNTIME_DIR/backend" "$RUNTIME_DIR/frontend"
 mkdir -p "$RUNTIME_DIR/backend" "$RUNTIME_DIR/frontend"
 
-rsync -a \
-  --exclude '.git' \
-  --exclude 'coverage' \
-  --exclude 'test' \
-  "$BACKEND_SRC/" "$RUNTIME_DIR/backend/"
+cp -a "$BACKEND_SRC/." "$RUNTIME_DIR/backend/"
+rm -rf "$RUNTIME_DIR/backend/.git" "$RUNTIME_DIR/backend/coverage" "$RUNTIME_DIR/backend/test"
 
 cp -R "$FRONTEND_SRC/dist/public-pool-ui" "$RUNTIME_DIR/frontend/dist"
 mkdir -p "$RUNTIME_DIR/frontend/dist/chunks" "$RUNTIME_DIR/frontend/dist/vendor/@kurkle/color"

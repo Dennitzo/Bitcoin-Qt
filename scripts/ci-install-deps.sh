@@ -6,9 +6,20 @@ case "$(uname -s)" in
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends \
       build-essential \
+      autoconf \
+      automake \
+      clang \
       cmake \
+      cargo \
+      curl \
+      git \
+      libclang-dev \
+      libtool \
       ninja-build \
       patchelf \
+      pkg-config \
+      rustc \
+      xz-utils \
       libcups2-dev \
       libegl1 \
       libgl1 \
@@ -33,7 +44,7 @@ case "$(uname -s)" in
     fi
     ;;
   MINGW*|MSYS*|CYGWIN*)
-    choco install cmake ninja -y --no-progress
+    choco install cmake git llvm make ninja pkgconfiglite rust 7zip -y --no-progress
     ;;
   *)
     echo "Unsupported CI platform: $(uname -s)" >&2

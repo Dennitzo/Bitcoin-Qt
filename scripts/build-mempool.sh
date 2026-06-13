@@ -35,14 +35,11 @@ done
 rm -rf "$PREFIX"
 mkdir -p "$PREFIX/backend" "$PREFIX/frontend"
 
-rsync -a \
-  --exclude '.git' \
-  --exclude 'test' \
-  --exclude 'tests' \
-  "$BUILD_DIR/mempool/backend/" "$PREFIX/backend/"
+cp -a "$BUILD_DIR/mempool/backend/." "$PREFIX/backend/"
+rm -rf "$PREFIX/backend/.git" "$PREFIX/backend/test" "$PREFIX/backend/tests"
 
-rsync -a \
-  "$BUILD_DIR/mempool/frontend/dist/" "$PREFIX/frontend/dist/"
+mkdir -p "$PREFIX/frontend/dist"
+cp -a "$BUILD_DIR/mempool/frontend/dist/." "$PREFIX/frontend/dist/"
 
 cat > "$PREFIX/backend/server.js" <<'JS'
 process.chdir(__dirname);
