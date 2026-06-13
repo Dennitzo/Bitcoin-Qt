@@ -24,11 +24,27 @@ git checkout "$REF"
 
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
+    if [[ -z "${CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER:-}" ]]; then
+      for candidate in \
+        "/c/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC"/*/bin/Hostx64/x64/link.exe \
+        "/c/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC"/*/bin/Hostx64/x64/link.exe \
+        "/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC"/*/bin/Hostx64/x64/link.exe; do
+        if [[ -x "$candidate" ]]; then
+          export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="$candidate"
+          break
+        fi
+      done
+    fi
+    if [[ -z "${CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER:-}" ]]; then
+      echo "MSVC link.exe not found. Ensure the Visual Studio C++ build tools are available." >&2
+      exit 1
+    fi
     "$NODE" <<'JS'
 const fs = require('fs');
 const path = 'rust/gbt/package.json';
 const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
 pkg.scripts['check-cargo-version'] = 'cargo version';
+pkg.scripts['build-release'] = 'npm run build -- --release';
 fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
 JS
     ;;
