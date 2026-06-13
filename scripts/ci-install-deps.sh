@@ -42,9 +42,10 @@ case "$(uname -s)" in
     if ! command -v ninja >/dev/null 2>&1; then
       brew install ninja
     fi
+    python3 -m pip install --user setuptools
     ;;
   MINGW*|MSYS*|CYGWIN*)
-    choco install cmake git llvm make ninja pkgconfiglite rust 7zip -y --no-progress
+    choco install make pkgconfiglite rust -y --no-progress
     ;;
   *)
     echo "Unsupported CI platform: $(uname -s)" >&2

@@ -27,7 +27,7 @@ jobs:
             qt-version: "6.7.3"
             qt-host: mac
             qt-arch: clang_64
-            build-runtime: false
+            build-runtime: true
             artifact: bitcoin-qt-macos-x64
           - label: macOS ARM64
             runner: macos-14
