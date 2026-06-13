@@ -65,6 +65,18 @@ for (const name of fs.readdirSync(__dirname)) {
   }
 }
 `);
+
+for (const path of ['backend/package.json', 'frontend/package.json']) {
+  const packageJson = JSON.parse(fs.readFileSync(path, 'utf8'));
+  for (const [name, script] of Object.entries(packageJson.scripts || {})) {
+    packageJson.scripts[name] = script
+      .replaceAll('./node_modules/typescript/bin/tsc', 'node ./node_modules/typescript/bin/tsc')
+      .replaceAll('./node_modules/@angular/cli/bin/ng.js', 'node ./node_modules/@angular/cli/bin/ng.js')
+      .replaceAll('./node_modules/.bin/eslint', 'eslint')
+      .replaceAll('./node_modules/.bin/jest', 'jest');
+  }
+  fs.writeFileSync(path, `${JSON.stringify(packageJson, null, 2)}\n`);
+}
 JS
     ;;
 esac
