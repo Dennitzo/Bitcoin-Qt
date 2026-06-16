@@ -95,6 +95,22 @@ JS
     ;;
 esac
 
+"$NODE" <<'JS'
+const fs = require('fs');
+const difficultyPath = 'frontend/src/app/components/difficulty/difficulty.component.ts';
+let difficulty = fs.readFileSync(difficultyPath, 'utf8');
+if (!difficulty.includes('if (start > end)')) {
+  difficulty = difficulty.replace(
+`    if (startX > endX) {
+      return [];
+    }`,
+`    if (start > end || startX > endX) {
+      return [];
+    }`);
+  fs.writeFileSync(difficultyPath, difficulty);
+}
+JS
+
 for package_dir in backend frontend; do
   cd "$BUILD_DIR/mempool/$package_dir"
   if [[ -f package-lock.json ]]; then
@@ -112,6 +128,10 @@ done
 "$NODE" <<'JS'
 const fs = require('fs');
 const migrationPath = 'backend/dist/api/database-migration.js';
+if (!fs.existsSync(migrationPath)) {
+  console.log(`${migrationPath} not found, skipping compatibility migration patch`);
+  process.exit(0);
+}
 let migration = fs.readFileSync(migrationPath, 'utf8');
 migration = migration.replaceAll(
   "ALTER TABLE blocks DROP FOREIGN KEY IF EXISTS `blocks_ibfk_1`",

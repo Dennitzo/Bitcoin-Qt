@@ -51,6 +51,8 @@ struct PublicPoolStats {
 struct ElectrsSyncStatus {
     int indexedHeaderHeight = 0;
     int targetHeaderHeight = 0;
+    QString phase;
+    qint64 phaseElapsedSeconds = 0;
     bool available = false;
 };
 

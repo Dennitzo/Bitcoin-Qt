@@ -38,6 +38,8 @@ ElectrsService::ElectrsService(ConfigManager& config, LogManager& logs, QObject*
 
     m_readinessTimer.setInterval(5000);
     QObject::connect(&m_readinessTimer, &QTimer::timeout, this, &ElectrsService::checkBitcoinRpc);
+    m_compactionTimer.setInterval(15000);
+    QObject::connect(&m_compactionTimer, &QTimer::timeout, this, &ElectrsService::updateCompactionStatus);
     QObject::connect(&m_rpc, &RpcClient::result, this, [this](const QString& method, const QJsonValue& value) {
         if (!m_startRequested || method != "getblockchaininfo") {
             return;
@@ -79,6 +81,8 @@ void ElectrsService::stop()
     m_startRequested = false;
     m_readinessTimer.stop();
     m_healthTimer.stop();
+    m_compactionTimer.stop();
+    m_compactionPhase.clear();
     m_rpc.abortPendingRequests();
     ManagedService::stop();
 }
@@ -178,9 +182,49 @@ void ElectrsService::checkPort()
     socket->connectToHost("127.0.0.1", config().electrsPort());
 }
 
+void ElectrsService::updateCompactionStatus()
+{
+    if (m_compactionPhase.isEmpty() || !m_compactionElapsed.isValid()) {
+        return;
+    }
+    m_syncStatus.phase = m_compactionPhase;
+    m_syncStatus.phaseElapsedSeconds = m_compactionElapsed.elapsed() / 1000;
+    Q_EMIT syncStatusChanged(m_syncStatus);
+    setState(ServiceState::Indexing, m_compactionPhase);
+}
+
 void ElectrsService::handleStdout(const QString& line)
 {
+    if (line.contains("\"method\":\"server.version\"") || line.contains("\"method\":\"blockchain.headers.subscribe\"")) {
+        return;
+    }
+    if (line.contains("disconnected", Qt::CaseInsensitive)
+        || line.contains("failed to shutdown TCP receiving Socket is not connected", Qt::CaseInsensitive)) {
+        return;
+    }
     ManagedService::handleStdout(line);
+    if (line.contains("starting config compaction", Qt::CaseInsensitive)) {
+        m_compactionPhase = "Config Compaction";
+        m_compactionElapsed.restart();
+        m_compactionTimer.start();
+        updateCompactionStatus();
+    } else if (line.contains("starting headers compaction", Qt::CaseInsensitive)) {
+        m_compactionPhase = "Headers Compaction";
+        m_compactionElapsed.restart();
+        m_compactionTimer.start();
+        updateCompactionStatus();
+    } else if (line.contains("starting txid compaction", Qt::CaseInsensitive)) {
+        m_compactionPhase = "Txid Compaction";
+        m_compactionElapsed.restart();
+        m_compactionTimer.start();
+        updateCompactionStatus();
+    } else if (line.contains("finished", Qt::CaseInsensitive) && line.contains("compaction", Qt::CaseInsensitive)) {
+        m_compactionTimer.stop();
+        m_compactionPhase.clear();
+        m_syncStatus.phase.clear();
+        m_syncStatus.phaseElapsedSeconds = 0;
+        Q_EMIT syncStatusChanged(m_syncStatus);
+    }
     if (line.contains("index", Qt::CaseInsensitive)) {
         setState(ServiceState::Indexing, "Indexiert Blockchain");
     }

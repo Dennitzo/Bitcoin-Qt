@@ -4,6 +4,7 @@
 #include "../core/RpcClient.h"
 
 #include <QTcpSocket>
+#include <QElapsedTimer>
 #include <QTimer>
 
 class ElectrsService final : public ManagedService {
@@ -26,13 +27,17 @@ private:
     bool writeAuthCookie() const;
     void checkBitcoinRpc();
     void checkPort();
+    void updateCompactionStatus();
     void startElectrsProcess();
     void handleStdout(const QString& line) override;
     void handleStderr(const QString& line) override;
 
     QTimer m_healthTimer;
     QTimer m_readinessTimer;
+    QTimer m_compactionTimer;
+    QElapsedTimer m_compactionElapsed;
     RpcClient m_rpc;
     ElectrsSyncStatus m_syncStatus;
+    QString m_compactionPhase;
     bool m_startRequested = false;
 };

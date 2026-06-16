@@ -78,6 +78,11 @@ function proxyHttp(req, res) {
 }
 
 const server = http.createServer((req, res) => {
+  if ((req.url || '/') === '/bitcoin-qt-health') {
+    res.writeHead(200, {'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store'});
+    res.end(JSON.stringify({ok: true, backendPort}));
+    return;
+  }
   if (isBackendRequest(req.url || '/')) {
     proxyHttp(req, res);
     return;

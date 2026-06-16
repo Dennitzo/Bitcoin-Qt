@@ -36,6 +36,21 @@ const backend = process.env.BACKEND_SRC;
 
 const addressSettingsService = path.join(backend, 'src/ORM/address-settings/address-settings.service.ts');
 let addressSettingsSource = fs.readFileSync(addressSettingsService, 'utf8');
+if (addressSettingsSource.includes('public async getAddresses()') && !addressSettingsSource.includes('"rejectedShares"')) {
+  addressSettingsSource = addressSettingsSource.replace(
+`    public async getAddresses() {
+        return await this.addressSettingsRepository.createQueryBuilder()
+            .select('"address", "updatedAt", "shares", "bestDifficulty", "bestDifficultyUserAgent"')
+            .orderBy('"updatedAt"', 'DESC')
+            .execute();
+    }`,
+`    public async getAddresses() {
+        return await this.addressSettingsRepository.createQueryBuilder()
+            .select('"address", "updatedAt", "shares", "rejectedShares", "bestDifficulty", "bestDifficultyUserAgent"')
+            .orderBy('"updatedAt"', 'DESC')
+            .execute();
+    }`);
+}
 if (!addressSettingsSource.includes('public async getAddresses()')) {
   addressSettingsSource = addressSettingsSource.replace(
 `    public async createNew(address: string) {
@@ -43,7 +58,7 @@ if (!addressSettingsSource.includes('public async getAddresses()')) {
     }`,
 `    public async getAddresses() {
         return await this.addressSettingsRepository.createQueryBuilder()
-            .select('"address", "updatedAt", "shares", "bestDifficulty", "bestDifficultyUserAgent"')
+            .select('"address", "updatedAt", "shares", "rejectedShares", "bestDifficulty", "bestDifficultyUserAgent"')
             .orderBy('"updatedAt"', 'DESC')
             .execute();
     }
@@ -51,7 +66,235 @@ if (!addressSettingsSource.includes('public async getAddresses()')) {
     public async createNew(address: string) {
         return await this.addressSettingsRepository.save({ address });
     }`);
-  fs.writeFileSync(addressSettingsService, addressSettingsSource);
+}
+if (!addressSettingsSource.includes('public async addRejectedShare(address: string)')) {
+  addressSettingsSource = addressSettingsSource.replace(
+`    public async addShares(address: string, shares: number) {
+        return await this.addressSettingsRepository.createQueryBuilder()
+            .update(AddressSettingsEntity)
+            .set({
+                shares: () => \`"shares" + \${shares}\` // Use the actual value of shares here
+            })
+            .where('address = :address', { address })
+            .execute();
+    }`,
+`    public async addShares(address: string, shares: number) {
+        return await this.addressSettingsRepository.createQueryBuilder()
+            .update(AddressSettingsEntity)
+            .set({
+                shares: () => \`"shares" + \${shares}\` // Use the actual value of shares here
+            })
+            .where('address = :address', { address })
+            .execute();
+    }
+
+    public async addRejectedShare(address: string) {
+        await this.addressSettingsRepository
+            .createQueryBuilder()
+            .insert()
+            .into(AddressSettingsEntity)
+            .values({ address })
+            .orIgnore()
+            .execute();
+
+        return await this.addressSettingsRepository.createQueryBuilder()
+            .update(AddressSettingsEntity)
+            .set({
+                rejectedShares: () => '"rejectedShares" + 1'
+            })
+            .where('address = :address', { address })
+            .execute();
+    }`);
+}
+fs.writeFileSync(addressSettingsService, addressSettingsSource);
+
+const addressSettingsEntity = path.join(backend, 'src/ORM/address-settings/address-settings.entity.ts');
+let addressSettingsEntitySource = fs.readFileSync(addressSettingsEntity, 'utf8');
+if (!addressSettingsEntitySource.includes('rejectedShares: number')) {
+  addressSettingsEntitySource = addressSettingsEntitySource.replace(
+`    @Column({ default: 0 })
+    shares: number;`,
+`    @Column({ default: 0 })
+    shares: number;
+
+    @Column({ default: 0 })
+    rejectedShares: number;`);
+  fs.writeFileSync(addressSettingsEntity, addressSettingsEntitySource);
+}
+
+const clientController = path.join(backend, 'src/controllers/client/client.controller.ts');
+let clientControllerSource = fs.readFileSync(clientController, 'utf8');
+if (!clientControllerSource.includes('rejectedShares: addressSettings?.rejectedShares')) {
+  clientControllerSource = clientControllerSource.replace(
+`                ...accounting,
+                bestSubmissionDifficulty: addressSettings?.bestDifficulty ?? accounting?.bestSubmissionDifficulty ?? 0`,
+`                ...accounting,
+                rejectedShares: addressSettings?.rejectedShares ?? 0,
+                bestSubmissionDifficulty: addressSettings?.bestDifficulty ?? accounting?.bestSubmissionDifficulty ?? 0`);
+  fs.writeFileSync(clientController, clientControllerSource);
+}
+
+const clientStatisticsEntity = path.join(backend, 'src/ORM/client-statistics/client-statistics.entity.ts');
+let clientStatisticsEntitySource = fs.readFileSync(clientStatisticsEntity, 'utf8');
+if (!clientStatisticsEntitySource.includes('rejectedCount: number')) {
+  clientStatisticsEntitySource = clientStatisticsEntitySource.replace(
+`    @Column({ default: 0, type: 'integer' })
+    acceptedCount: number;`,
+`    @Column({ default: 0, type: 'integer' })
+    acceptedCount: number;
+
+    @Column({ default: 0, type: 'integer' })
+    rejectedCount: number;`);
+  fs.writeFileSync(clientStatisticsEntity, clientStatisticsEntitySource);
+}
+
+const clientStatisticsService = path.join(backend, 'src/ORM/client-statistics/client-statistics.service.ts');
+let clientStatisticsServiceSource = fs.readFileSync(clientStatisticsService, 'utf8');
+if (!clientStatisticsServiceSource.includes('rejectedSharesLast10Minutes')) {
+  clientStatisticsServiceSource = clientStatisticsServiceSource
+    .replace(
+`                shares: clientStatistic.shares,
+                acceptedCount: clientStatistic.acceptedCount,
+                updatedAt: new Date()`,
+`                shares: clientStatistic.shares,
+                acceptedCount: clientStatistic.acceptedCount,
+                rejectedCount: clientStatistic.rejectedCount,
+                updatedAt: new Date()`)
+    .replaceAll(
+`                COALESCE(SUM(acceptedCount), 0) AS totalAcceptedShares,
+                COALESCE(SUM(shares), 0) AS totalCreditedDifficulty,
+                COALESCE(SUM(CASE WHEN time > ? THEN acceptedCount ELSE 0 END), 0) AS acceptedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN shares ELSE 0 END), 0) AS creditedDifficultyLastHour,`,
+`                COALESCE(SUM(acceptedCount), 0) AS totalAcceptedShares,
+                COALESCE(SUM(rejectedCount), 0) AS totalRejectedShares,
+                COALESCE(SUM(shares), 0) AS totalCreditedDifficulty,
+                COALESCE(SUM(CASE WHEN time > ? THEN acceptedCount ELSE 0 END), 0) AS acceptedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN rejectedCount ELSE 0 END), 0) AS rejectedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN shares ELSE 0 END), 0) AS creditedDifficultyLastHour,`)
+    .replace('query, [tenMinutesAgo, oneHourAgo, oneHourAgo])', 'query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, oneHourAgo])')
+    .replace('query, [tenMinutesAgo, oneHourAgo, address])', 'query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address])')
+    .replace('query, [tenMinutesAgo, oneHourAgo, address, clientName])', 'query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address, clientName])')
+    .replace('query, [tenMinutesAgo, oneHourAgo, address, clientName, sessionId])', 'query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address, clientName, sessionId])');
+  fs.writeFileSync(clientStatisticsService, clientStatisticsServiceSource);
+}
+
+const clientStatistics = path.join(backend, 'src/models/StratumV1ClientStatistics.ts');
+let clientStatisticsSource = fs.readFileSync(clientStatistics, 'utf8');
+if (!clientStatisticsSource.includes('public async addRejectedShare(client: ClientEntity)')) {
+  clientStatisticsSource = clientStatisticsSource
+    .replace('    private acceptedCount: number = 0;\n', '    private acceptedCount: number = 0;\n    private rejectedCount: number = 0;\n')
+    .replaceAll('                acceptedCount: this.acceptedCount,\n', '                acceptedCount: this.acceptedCount,\n                rejectedCount: this.rejectedCount,\n')
+    .replace('            this.acceptedCount = 1\n', '            this.acceptedCount = 1\n            this.rejectedCount = 0;\n')
+    .replace(
+`\n    public getSuggestedDifficulty(clientDifficulty: number) {`,
+`\n    public async addRejectedShare(client: ClientEntity) {
+        const coeff = 1000 * 60 * 10;
+        const date = new Date();
+        const timeSlot = new Date(Math.floor(date.getTime() / coeff) * coeff).getTime();
+
+        if (this.currentTimeSlot == null) {
+            this.previousTimeSlotTime = new Date();
+            this.currentTimeSlotTime = new Date();
+            this.currentTimeSlot = timeSlot;
+            this.rejectedCount++;
+            await this.clientStatisticsService.insert({
+                time: this.currentTimeSlot,
+                shares: this.shares,
+                acceptedCount: this.acceptedCount,
+                rejectedCount: this.rejectedCount,
+                address: client.address,
+                clientName: client.clientName,
+                sessionId: client.sessionId
+            });
+            this.lastSave = new Date().getTime();
+        } else if (this.currentTimeSlot != timeSlot) {
+            await this.clientStatisticsService.update({
+                time: this.currentTimeSlot,
+                shares: this.shares,
+                acceptedCount: this.acceptedCount,
+                rejectedCount: this.rejectedCount,
+                address: client.address,
+                clientName: client.clientName,
+                sessionId: client.sessionId
+            });
+            this.previousShares = this.shares;
+            this.previousTimeSlotTime = this.currentTimeSlotTime;
+            this.currentTimeSlotTime = new Date();
+            this.currentTimeSlot = timeSlot;
+            this.shares = 0;
+            this.acceptedCount = 0;
+            this.rejectedCount = 1;
+            await this.clientStatisticsService.insert({
+                time: this.currentTimeSlot,
+                shares: this.shares,
+                acceptedCount: this.acceptedCount,
+                rejectedCount: this.rejectedCount,
+                address: client.address,
+                clientName: client.clientName,
+                sessionId: client.sessionId
+            });
+            this.lastSave = new Date().getTime();
+        } else {
+            this.rejectedCount++;
+            await this.clientStatisticsService.update({
+                time: this.currentTimeSlot,
+                shares: this.shares,
+                acceptedCount: this.acceptedCount,
+                rejectedCount: this.rejectedCount,
+                address: client.address,
+                clientName: client.clientName,
+                sessionId: client.sessionId
+            });
+            this.lastSave = new Date().getTime();
+        }
+    }
+
+    public getSuggestedDifficulty(clientDifficulty: number) {`);
+  fs.writeFileSync(clientStatistics, clientStatisticsSource);
+}
+
+const stratumClient = path.join(backend, 'src/models/StratumV1Client.ts');
+let stratumClientSource = fs.readFileSync(stratumClient, 'utf8');
+if (!stratumClientSource.includes('private async recordRejectedShare()')) {
+  stratumClientSource = stratumClientSource.replace(
+`    private async handleMiningSubmission(submission: MiningSubmitMessage) {`,
+`    private async recordRejectedShare() {
+        if (!this.clientAuthorization?.address) {
+            return;
+        }
+        try {
+            await this.addressSettingsService.addRejectedShare(this.clientAuthorization.address);
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    private async handleMiningSubmission(submission: MiningSubmitMessage) {`);
+  stratumClientSource = stratumClientSource.replaceAll(
+`            const success = await this.write(err);
+            if (!success) {
+                return false;
+            }
+            return false;`,
+`            const success = await this.write(err);
+            await this.recordRejectedShare();
+            if (!success) {
+                return false;
+            }
+            return false;`);
+  fs.writeFileSync(stratumClient, stratumClientSource);
+}
+if (stratumClientSource.includes('private async recordRejectedShare()') && !stratumClientSource.includes('await this.statistics.addRejectedShare(this.entity);')) {
+  stratumClientSource = stratumClientSource.replace(
+`        try {
+            await this.addressSettingsService.addRejectedShare(this.clientAuthorization.address);
+        } catch (e) {`,
+`        try {
+            await this.ensureClientEntity();
+            await this.statistics.addRejectedShare(this.entity);
+            await this.addressSettingsService.addRejectedShare(this.clientAuthorization.address);
+        } catch (e) {`);
+  fs.writeFileSync(stratumClient, stratumClientSource);
 }
 
 const appController = path.join(backend, 'src/app.controller.ts');
@@ -150,28 +393,37 @@ if (!splashTemplateSource.includes('class="card address-card"')) {
         <div class="col-12" *ngIf="accounting$ | async as accounting">`);
   fs.writeFileSync(splashTemplate, splashTemplateSource);
 }
+if (!splashTemplateSource.includes('Rejected {{(entry.rejectedShares || 0) | numberSuffix}}')) {
+  splashTemplateSource = splashTemplateSource.replace(
+`                            <span>{{(entry.shares || 0) | numberSuffix}} shares</span>
+                            <span>Best {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`,
+`                            <span>{{(entry.shares || 0) | numberSuffix}} shares</span>
+                            <span>Rejected {{(entry.rejectedShares || 0) | numberSuffix}}</span>
+                            <span>Best {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`);
+  fs.writeFileSync(splashTemplate, splashTemplateSource);
+}
 
 const splashStyles = path.join(frontend, 'src/app/components/splash/splash.component.scss');
 let splashStylesSource = fs.readFileSync(splashStyles, 'utf8');
-if (!splashStylesSource.includes('.address-card')) {
+if (!splashStylesSource.includes('.address-list')) {
   splashStylesSource = splashStylesSource.replace(
 `.round-card {
     padding: 1.5rem;
 }`,
 `.address-list {
     border: 1px solid var(--surface-border);
-    overflow: hidden;
     margin-top: 1rem;
+    overflow: hidden;
 }
 
 .address-row {
     align-items: center;
-    color: var(--text-color);
     display: grid;
     gap: 1rem;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
     padding: 0.85rem 1rem;
     text-decoration: none;
+    color: var(--text-color);
 }
 
 .address-row+.address-row {
@@ -205,6 +457,63 @@ if (!splashStylesSource.includes('.address-card')) {
     }`);
   fs.writeFileSync(splashStyles, splashStylesSource);
 }
+JS
+
+FRONTEND_SRC="$FRONTEND_SRC" "$NODE_BIN" <<'JS'
+const fs = require('fs');
+const path = require('path');
+
+const frontend = process.env.FRONTEND_SRC;
+const dashboardTemplate = path.join(frontend, 'src/app/components/dashboard/dashboard.component.html');
+let dashboardSource = fs.readFileSync(dashboardTemplate, 'utf8');
+if (!dashboardSource.includes('<span>Rejected Shares</span>')) {
+  dashboardSource = dashboardSource.replace(
+`                    <div class="snapshot-metric">
+                        <span>Accepted Shares</span>
+                        <strong>{{clientInfo.accounting?.totalAcceptedShares | numberSuffix}}</strong>
+                        <small>{{clientInfo.accounting?.acceptedSharesLast10Minutes | numberSuffix}} last 10m</small>
+                    </div>
+
+                    <div class="snapshot-metric">
+                        <span>Accumulated Work</span>`,
+`                    <div class="snapshot-metric">
+                        <span>Accepted Shares</span>
+                        <strong>{{clientInfo.accounting?.totalAcceptedShares | numberSuffix}}</strong>
+                        <small>{{clientInfo.accounting?.acceptedSharesLast10Minutes | numberSuffix}} last 10m</small>
+                    </div>
+
+                    <div class="snapshot-metric">
+                        <span>Rejected Shares</span>
+                        <strong>{{(clientInfo.accounting?.rejectedShares || 0) | numberSuffix}}</strong>
+                        <small>{{(clientInfo.accounting?.rejectedSharesLast10Minutes || 0) | numberSuffix}} last 10m</small>
+                    </div>
+
+                    <div class="snapshot-metric">
+                        <span>Accumulated Work</span>`);
+  fs.writeFileSync(dashboardTemplate, dashboardSource);
+}
+dashboardSource = fs.readFileSync(dashboardTemplate, 'utf8');
+if (dashboardSource.includes('<small>Rejected</small>')) {
+  dashboardSource = dashboardSource.replace('<small>Rejected</small>', '<small>{{(clientInfo.accounting?.rejectedSharesLast10Minutes || 0) | numberSuffix}} last 10m</small>');
+  fs.writeFileSync(dashboardTemplate, dashboardSource);
+}
+
+const dashboardStyles = path.join(frontend, 'src/app/components/dashboard/dashboard.component.scss');
+let dashboardStylesSource = fs.readFileSync(dashboardStyles, 'utf8');
+dashboardStylesSource = dashboardStylesSource
+  .replace('gap: 1.25rem;\n    grid-template-columns: minmax(13rem, 1.35fr) repeat(3, minmax(0, 1fr));', 'gap: 0.55rem;\n    grid-template-columns: minmax(8rem, 1.15fr) repeat(4, minmax(5.75rem, 1fr));')
+  .replace('gap: 0.85rem;\n    grid-template-columns: minmax(10rem, 1.2fr) repeat(4, minmax(0, 1fr));', 'gap: 0.55rem;\n    grid-template-columns: minmax(8rem, 1.15fr) repeat(4, minmax(5.75rem, 1fr));')
+  .replace('font-size: 0.82rem;', 'font-size: 0.72rem;')
+  .replace('font-size: 0.78rem;', 'font-size: 0.72rem;')
+  .replace('font-size: 1.35rem;\n    font-weight: 600;\n    margin: 0.45rem 0 0.25rem;', 'font-size: 1.08rem;\n    font-weight: 600;\n    margin: 0.45rem 0 0.25rem;')
+  .replace('font-size: 1.18rem;\n    font-weight: 600;\n    margin: 0.45rem 0 0.25rem;', 'font-size: 1.08rem;\n    font-weight: 600;\n    margin: 0.45rem 0 0.25rem;')
+  .replace('font-size: 1.65rem;', 'font-size: 1.28rem;')
+  .replace('font-size: 1.45rem;', 'font-size: 1.28rem;')
+  .replace('    .hero-stats,\n    .snapshot-grid {\n        grid-template-columns: repeat(2, minmax(0, 1fr));\n    }', '    .hero-stats {\n        grid-template-columns: repeat(2, minmax(0, 1fr));\n    }');
+if (!dashboardStylesSource.includes('.snapshot-metric span {\n    white-space: nowrap;\n}')) {
+  dashboardStylesSource = dashboardStylesSource.replace('.snapshot-metric strong {', '.snapshot-metric span {\n    white-space: nowrap;\n}\n\n.snapshot-metric strong {');
+}
+fs.writeFileSync(dashboardStyles, dashboardStylesSource);
 JS
 
 (

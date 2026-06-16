@@ -280,7 +280,10 @@ void MainWindow::updateSidebarAvailability()
         m_mempoolItem->setHidden(!(bitcoinSynced && service.state == ServiceState::Running));
     }
     if (m_publicPoolItem) {
-        m_publicPoolItem->setHidden(!serviceVisible("public-pool"));
+        const ServiceStatus service = m_serviceStatuses.value("public-pool");
+        m_publicPoolItem->setHidden(!(bitcoinSynced
+            && service.state == ServiceState::Running
+            && service.detail == "Stratum und UI erreichbar"));
     }
     if (m_sidebar && m_sidebar->currentItem() && m_sidebar->currentItem()->isHidden()) {
         m_sidebar->setCurrentItem(m_dashboardItem);
