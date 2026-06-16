@@ -339,7 +339,10 @@ bool MempoolService::writeBackendConfig() const
         {"POOL_SIZE", 50},
     });
     root.insert("SYSLOG", QJsonObject{{"ENABLED", false}});
-    root.insert("STATISTICS", QJsonObject{{"ENABLED", false}});
+    root.insert("STATISTICS", QJsonObject{
+        {"ENABLED", true},
+        {"TX_PER_SECOND_SAMPLE_PERIOD", 150},
+    });
     root.insert("LIGHTNING", QJsonObject{{"ENABLED", false}});
     root.insert("FIAT_PRICE", QJsonObject{{"ENABLED", false}});
     root.insert("MAXMIND", QJsonObject{{"ENABLED", false}});

@@ -50,7 +50,14 @@ function resolveFile(urlPath) {
 function apiPath(urlPath) {
   const [pathname, query = ''] = urlPath.split('?');
   const normalized = pathname.replace(/^\/[a-z]{2}(?:-[A-Z]{2})?\/api(?=\/|$)/, '/api');
-  return query ? `${normalized}?${query}` : normalized;
+  const prefixed = normalized === '/api'
+    ? '/api/v1'
+    : normalized.startsWith('/api/v1/')
+      ? normalized
+      : normalized.startsWith('/api/')
+        ? `/api/v1${normalized.slice('/api'.length)}`
+        : normalized;
+  return query ? `${prefixed}?${query}` : prefixed;
 }
 
 function isBackendRequest(urlPath) {

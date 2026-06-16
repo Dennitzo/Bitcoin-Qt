@@ -170,6 +170,128 @@ if (!clientStatisticsServiceSource.includes('rejectedSharesLast10Minutes')) {
     .replace('query, [tenMinutesAgo, oneHourAgo, address])', 'query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address])')
     .replace('query, [tenMinutesAgo, oneHourAgo, address, clientName])', 'query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address, clientName])')
     .replace('query, [tenMinutesAgo, oneHourAgo, address, clientName, sessionId])', 'query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address, clientName, sessionId])');
+  if (!clientStatisticsServiceSource.includes('rejectedSharesLast10Minutes')) {
+    const replaceMethod = (source, signature, replacement) => {
+      const start = source.indexOf(signature);
+      if (start === -1) return null;
+      const open = source.indexOf('{', start);
+      if (open === -1) {
+        throw new Error(`Public Pool patch failed: missing method body for ${signature}`);
+      }
+      let depth = 0;
+      for (let i = open; i < source.length; i++) {
+        if (source[i] === '{') {
+          depth++;
+        } else if (source[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            return source.slice(0, start) + replacement + source.slice(i + 1);
+          }
+        }
+      }
+      throw new Error(`Public Pool patch failed: unterminated method body for ${signature}`);
+    };
+    const accountingMethods = `
+    public async getAccountingForSite() {
+        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const query = \`
+            SELECT
+                COALESCE(SUM(acceptedCount), 0) AS totalAcceptedShares,
+                COALESCE(SUM(rejectedCount), 0) AS totalRejectedShares,
+                COALESCE(SUM(shares), 0) AS totalCreditedDifficulty,
+                COALESCE(SUM(CASE WHEN time > ? THEN acceptedCount ELSE 0 END), 0) AS acceptedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN rejectedCount ELSE 0 END), 0) AS rejectedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN shares ELSE 0 END), 0) AS creditedDifficultyLastHour,
+                COALESCE(MAX(shares), 0) AS bestSubmissionDifficulty,
+                COALESCE((SUM(CASE WHEN time > ? THEN shares ELSE 0 END) * 4294967296) / 3600, 0) AS hashRateLastHour
+            FROM client_statistics_entity;
+        \`;
+        const result = await this.clientStatisticsRepository.query(query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, oneHourAgo]);
+        return result[0];
+    }
+
+    public async getAccountingForAddress(address: string) {
+        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const query = \`
+            SELECT
+                COALESCE(SUM(acceptedCount), 0) AS totalAcceptedShares,
+                COALESCE(SUM(rejectedCount), 0) AS totalRejectedShares,
+                COALESCE(SUM(shares), 0) AS totalCreditedDifficulty,
+                COALESCE(SUM(CASE WHEN time > ? THEN acceptedCount ELSE 0 END), 0) AS acceptedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN rejectedCount ELSE 0 END), 0) AS rejectedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN shares ELSE 0 END), 0) AS creditedDifficultyLastHour,
+                COALESCE(MAX(shares), 0) AS bestSubmissionDifficulty
+            FROM client_statistics_entity
+            WHERE address = ?;
+        \`;
+        const result = await this.clientStatisticsRepository.query(query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address]);
+        return result[0];
+    }
+
+    public async getAccountingForGroup(address: string, clientName: string) {
+        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const query = \`
+            SELECT
+                COALESCE(SUM(acceptedCount), 0) AS totalAcceptedShares,
+                COALESCE(SUM(rejectedCount), 0) AS totalRejectedShares,
+                COALESCE(SUM(shares), 0) AS totalCreditedDifficulty,
+                COALESCE(SUM(CASE WHEN time > ? THEN acceptedCount ELSE 0 END), 0) AS acceptedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN rejectedCount ELSE 0 END), 0) AS rejectedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN shares ELSE 0 END), 0) AS creditedDifficultyLastHour,
+                COALESCE(MAX(shares), 0) AS bestSubmissionDifficulty
+            FROM client_statistics_entity
+            WHERE address = ? AND clientName = ?;
+        \`;
+        const result = await this.clientStatisticsRepository.query(query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address, clientName]);
+        return result[0];
+    }
+
+    public async getAccountingForSession(address: string, clientName: string, sessionId: string) {
+        const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const query = \`
+            SELECT
+                COALESCE(SUM(acceptedCount), 0) AS totalAcceptedShares,
+                COALESCE(SUM(rejectedCount), 0) AS totalRejectedShares,
+                COALESCE(SUM(shares), 0) AS totalCreditedDifficulty,
+                COALESCE(SUM(CASE WHEN time > ? THEN acceptedCount ELSE 0 END), 0) AS acceptedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN rejectedCount ELSE 0 END), 0) AS rejectedSharesLast10Minutes,
+                COALESCE(SUM(CASE WHEN time > ? THEN shares ELSE 0 END), 0) AS creditedDifficultyLastHour,
+                COALESCE(MAX(shares), 0) AS bestSubmissionDifficulty
+            FROM client_statistics_entity
+            WHERE address = ? AND clientName = ? AND sessionId = ?;
+        \`;
+        const result = await this.clientStatisticsRepository.query(query, [tenMinutesAgo, tenMinutesAgo, oneHourAgo, address, clientName, sessionId]);
+        return result[0];
+    }
+`;
+    if (clientStatisticsServiceSource.includes('getAccountingForSite()')) {
+      for (const signature of [
+        '    public async getAccountingForSession(address: string, clientName: string, sessionId: string)',
+        '    public async getAccountingForGroup(address: string, clientName: string)',
+        '    public async getAccountingForAddress(address: string)',
+      ]) {
+        const updated = replaceMethod(clientStatisticsServiceSource, signature, '');
+        if (updated != null) {
+          clientStatisticsServiceSource = updated;
+        }
+      }
+      clientStatisticsServiceSource = replaceMethod(
+        clientStatisticsServiceSource,
+        '    public async getAccountingForSite()',
+        accountingMethods
+      );
+    } else {
+      clientStatisticsServiceSource = replaceOrThrow(
+        clientStatisticsServiceSource,
+        /\n\s+public async deleteAll\(\) \{/,
+        `\n${accountingMethods}\n    public async deleteAll() {`,
+        'insert ClientStatisticsService accounting methods');
+    }
+  }
   fs.writeFileSync(clientStatisticsService, clientStatisticsServiceSource);
 }
 

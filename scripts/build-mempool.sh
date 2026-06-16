@@ -109,6 +109,38 @@ if (!difficulty.includes('if (start > end)')) {
     }`);
   fs.writeFileSync(difficultyPath, difficulty);
 }
+
+const hashrateChartPath = 'frontend/src/app/components/hashrate-chart/hashrate-chart.component.ts';
+let hashrateChart = fs.readFileSync(hashrateChartPath, 'utf8');
+hashrateChart = hashrateChart.replace(
+  "text: $localize`:@@23555386d8af1ff73f297e89dd4af3f4689fb9dd:Indexing blocks`,",
+  "text: $localize`:@@23555386d8af1ff73f297e89dd4af3f4689fb9dd:Indexing network hashrate`,"
+);
+fs.writeFileSync(hashrateChartPath, hashrateChart);
+
+const hashratesRepositoryPath = 'backend/src/repositories/HashratesRepository.ts';
+let hashratesRepository = fs.readFileSync(hashratesRepositoryPath, 'utf8');
+if (!hashratesRepository.includes('NO_AUTO_VALUE_ON_ZERO')) {
+  hashratesRepository = hashratesRepository.replace(
+`    let query = \`INSERT INTO
+      hashrates(hashrate_timestamp, avg_hashrate, pool_id, share, type) VALUES\`;`,
+`    if (hashrates.some((hashrate) => hashrate.poolId === 0)) {
+      await DB.query(\`SET SESSION sql_mode = IF(
+        FIND_IN_SET('NO_AUTO_VALUE_ON_ZERO', @@SESSION.sql_mode),
+        @@SESSION.sql_mode,
+        CONCAT_WS(',', @@SESSION.sql_mode, 'NO_AUTO_VALUE_ON_ZERO')
+      )\`);
+      await DB.query(\`
+        INSERT IGNORE INTO pools(id, name, link, addresses, regexes, slug, unique_id)
+        VALUES (0, 'Network', '', '[]', '[]', 'network', -2)
+      \`);
+    }
+
+    let query = \`INSERT INTO
+      hashrates(hashrate_timestamp, avg_hashrate, pool_id, share, type) VALUES\`;`
+  );
+  fs.writeFileSync(hashratesRepositoryPath, hashratesRepository);
+}
 JS
 
 for package_dir in backend frontend; do

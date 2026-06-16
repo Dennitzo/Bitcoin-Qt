@@ -14,6 +14,18 @@ class HashratesRepository {
       return;
     }
 
+    if (hashrates.some((hashrate) => hashrate.poolId === 0)) {
+      await DB.query(`SET SESSION sql_mode = IF(
+        FIND_IN_SET('NO_AUTO_VALUE_ON_ZERO', @@SESSION.sql_mode),
+        @@SESSION.sql_mode,
+        CONCAT_WS(',', @@SESSION.sql_mode, 'NO_AUTO_VALUE_ON_ZERO')
+      )`);
+      await DB.query(`
+        INSERT IGNORE INTO pools(id, name, link, addresses, regexes, slug, unique_id)
+        VALUES (0, 'Network', '', '[]', '[]', 'network', -2)
+      `);
+    }
+
     let query = `INSERT INTO
       hashrates(hashrate_timestamp, avg_hashrate, pool_id, share, type) VALUES`;
 
