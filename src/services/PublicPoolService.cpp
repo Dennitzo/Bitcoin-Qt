@@ -11,6 +11,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcessEnvironment>
+#include <QStringList>
 
 #include <algorithm>
 
@@ -37,6 +38,26 @@ double sumNumberValue(const QJsonArray& array, const QString& key)
         total += numberValue(value.toObject(), key);
     }
     return total;
+}
+
+double networkHashrateFromDifficulty(double difficulty)
+{
+    if (difficulty <= 0.0 || !std::isfinite(difficulty)) {
+        return 0.0;
+    }
+    return (difficulty * 4294967296.0) / 600.0;
+}
+
+double hashratePointValue(const QJsonObject& object)
+{
+    static const QStringList keys{"avgHashrate", "hashrate", "hashRate", "networkHashrate", "value"};
+    for (const QString& key : keys) {
+        const double value = numberValue(object, key);
+        if (value > 0.0 && std::isfinite(value)) {
+            return value;
+        }
+    }
+    return 0.0;
 }
 
 QDateTime parseIsoDate(const QString& value)
@@ -284,13 +305,51 @@ void PublicPoolService::refreshStats()
                 if (stats.minerCount <= 0) {
                     stats.minerHashrate = 0.0;
                     stats.networkHashrate = 0.0;
+                    stats.networkHashrateMaximum = 0.0;
                     stats.bestShare = 0.0;
                     stats.networkDifficulty = 0.0;
                     stats.minerUptimeSeconds = 0;
                 }
-                Q_EMIT statsChanged(stats);
+                fetchNetworkHashrateMaximum(stats);
             });
         });
+    });
+}
+
+void PublicPoolService::fetchNetworkHashrateMaximum(PublicPoolStats stats)
+{
+    if (stats.networkHashrate <= 0.0 || !std::isfinite(stats.networkHashrate)) {
+        stats.networkHashrateMaximum = 0.0;
+        Q_EMIT statsChanged(stats);
+        return;
+    }
+
+    const QUrl url(QString("http://127.0.0.1:%1/api/v1/mining/hashrate/3y").arg(config().mempoolFrontendPort()));
+    QNetworkReply* reply = m_network.get(QNetworkRequest(url));
+    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, stats]() mutable {
+        reply->deleteLater();
+        if (!m_startRequested) {
+            return;
+        }
+        stats.networkHashrateMaximum = stats.networkHashrate;
+
+        if (reply->error() == QNetworkReply::NoError) {
+            const QJsonObject payload = QJsonDocument::fromJson(reply->readAll()).object();
+            stats.networkHashrateMaximum = std::max(stats.networkHashrateMaximum, numberValue(payload, "currentHashrate"));
+            stats.networkHashrateMaximum = std::max(stats.networkHashrateMaximum, networkHashrateFromDifficulty(numberValue(payload, "currentDifficulty")));
+
+            const QJsonArray hashrates = payload.value("hashrates").toArray();
+            for (const QJsonValue& value : hashrates) {
+                stats.networkHashrateMaximum = std::max(stats.networkHashrateMaximum, hashratePointValue(value.toObject()));
+            }
+
+            const QJsonArray difficulties = payload.value("difficulty").toArray();
+            for (const QJsonValue& value : difficulties) {
+                stats.networkHashrateMaximum = std::max(stats.networkHashrateMaximum, networkHashrateFromDifficulty(numberValue(value.toObject(), "difficulty")));
+            }
+        }
+
+        Q_EMIT statsChanged(stats);
     });
 }
 

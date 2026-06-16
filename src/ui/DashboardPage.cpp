@@ -343,26 +343,14 @@ void DashboardPage::updatePublicPoolStats(const PublicPoolStats& stats)
     }
 
     if (stats.minerHashrate > 0.0 && std::isfinite(stats.minerHashrate)) {
-        if (m_sessionMinMinerHashrate <= 0.0 || stats.minerHashrate < m_sessionMinMinerHashrate) {
-            m_sessionMinMinerHashrate = stats.minerHashrate;
-        }
         if (stats.minerHashrate > m_sessionMaxMinerHashrate) {
             m_sessionMaxMinerHashrate = stats.minerHashrate;
         }
     }
-    if (stats.networkHashrate > 0.0 && std::isfinite(stats.networkHashrate)) {
-        if (m_sessionMinNetworkHashrate <= 0.0 || stats.networkHashrate < m_sessionMinNetworkHashrate) {
-            m_sessionMinNetworkHashrate = stats.networkHashrate;
-        }
-        if (stats.networkHashrate > m_sessionMaxNetworkHashrate) {
-            m_sessionMaxNetworkHashrate = stats.networkHashrate;
-        }
-    }
-
     m_publicPoolMinerHashrate->setText(metricHtml("publicPool.minerHashrate", formatHashrate(stats.minerHashrate)));
-    m_publicPoolMinerHashrateProgress->setValue(rangeProgress(stats.minerHashrate, m_sessionMinMinerHashrate, m_sessionMaxMinerHashrate));
+    m_publicPoolMinerHashrateProgress->setValue(ratioProgress(stats.minerHashrate, m_sessionMaxMinerHashrate));
     m_publicPoolNetworkHashrate->setText(metricHtml("publicPool.networkHashrate", formatHashrate(stats.networkHashrate)));
-    m_publicPoolNetworkHashrateProgress->setValue(rangeProgress(stats.networkHashrate, m_sessionMinNetworkHashrate, m_sessionMaxNetworkHashrate));
+    m_publicPoolNetworkHashrateProgress->setValue(ratioProgress(stats.networkHashrate, stats.networkHashrateMaximum));
     m_publicPoolBestShare->setText(metricHtml("publicPool.bestShare", formatBestShare(stats.bestShare)));
     m_publicPoolMinerUptime->setText(metricHtml("publicPool.minerUptime", formatUptime(stats.minerUptimeSeconds)));
     m_publicPoolBestSharePercent->setText(metricHtml("publicPool.bestSharePercent", formatBestSharePercent(stats.bestShare, stats.networkDifficulty)));
@@ -456,19 +444,6 @@ int DashboardPage::ratioProgress(double value, double maximum) const
         return 0;
     }
     const double ratio = std::clamp(value / maximum, 0.0, 1.0);
-    return static_cast<int>(ratio * 10000.0);
-}
-
-int DashboardPage::rangeProgress(double value, double minimum, double maximum) const
-{
-    if (value <= 0.0 || minimum <= 0.0 || maximum <= 0.0
-        || !std::isfinite(value) || !std::isfinite(minimum) || !std::isfinite(maximum)) {
-        return 0;
-    }
-    if (maximum <= minimum) {
-        return value >= maximum ? 10000 : 0;
-    }
-    const double ratio = std::clamp((value - minimum) / (maximum - minimum), 0.0, 1.0);
     return static_cast<int>(ratio * 10000.0);
 }
 

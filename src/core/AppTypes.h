@@ -41,6 +41,7 @@ struct ServiceStatus {
 struct PublicPoolStats {
     double minerHashrate = 0.0;
     double networkHashrate = 0.0;
+    double networkHashrateMaximum = 0.0;
     double bestShare = 0.0;
     double networkDifficulty = 0.0;
     qint64 minerUptimeSeconds = 0;

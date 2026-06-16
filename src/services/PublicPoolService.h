@@ -29,6 +29,7 @@ private:
     void checkBackend();
     void checkFrontend();
     void refreshStats();
+    void fetchNetworkHashrateMaximum(PublicPoolStats stats);
     void emitOfflineStats();
     void attachProcess(QProcess& child, const QString& logId);
 

@@ -34,6 +34,14 @@ const path = require('path');
 
 const backend = process.env.BACKEND_SRC;
 
+function replaceOrThrow(source, pattern, replacement, label) {
+  const next = source.replace(pattern, replacement);
+  if (next === source) {
+    throw new Error(`Public Pool patch failed: ${label}`);
+  }
+  return next;
+}
+
 const addressSettingsService = path.join(backend, 'src/ORM/address-settings/address-settings.service.ts');
 let addressSettingsSource = fs.readFileSync(addressSettingsService, 'utf8');
 if (addressSettingsSource.includes('public async getAddresses()') && !addressSettingsSource.includes('"rejectedShares"')) {
@@ -68,26 +76,10 @@ if (!addressSettingsSource.includes('public async getAddresses()')) {
     }`);
 }
 if (!addressSettingsSource.includes('public async addRejectedShare(address: string)')) {
-  addressSettingsSource = addressSettingsSource.replace(
-`    public async addShares(address: string, shares: number) {
-        return await this.addressSettingsRepository.createQueryBuilder()
-            .update(AddressSettingsEntity)
-            .set({
-                shares: () => \`"shares" + \${shares}\` // Use the actual value of shares here
-            })
-            .where('address = :address', { address })
-            .execute();
-    }`,
-`    public async addShares(address: string, shares: number) {
-        return await this.addressSettingsRepository.createQueryBuilder()
-            .update(AddressSettingsEntity)
-            .set({
-                shares: () => \`"shares" + \${shares}\` // Use the actual value of shares here
-            })
-            .where('address = :address', { address })
-            .execute();
-    }
-
+  addressSettingsSource = replaceOrThrow(
+    addressSettingsSource,
+    /\n\s+public async resetBestDifficultyAndShares\(\) \{/,
+`
     public async addRejectedShare(address: string) {
         await this.addressSettingsRepository
             .createQueryBuilder()
@@ -104,21 +96,24 @@ if (!addressSettingsSource.includes('public async addRejectedShare(address: stri
             })
             .where('address = :address', { address })
             .execute();
-    }`);
+    }
+
+    public async resetBestDifficultyAndShares() {`,
+    'insert AddressSettingsService.addRejectedShare');
 }
 fs.writeFileSync(addressSettingsService, addressSettingsSource);
 
 const addressSettingsEntity = path.join(backend, 'src/ORM/address-settings/address-settings.entity.ts');
 let addressSettingsEntitySource = fs.readFileSync(addressSettingsEntity, 'utf8');
 if (!addressSettingsEntitySource.includes('rejectedShares: number')) {
-  addressSettingsEntitySource = addressSettingsEntitySource.replace(
-`    @Column({ default: 0 })
-    shares: number;`,
-`    @Column({ default: 0 })
-    shares: number;
+  addressSettingsEntitySource = replaceOrThrow(
+    addressSettingsEntitySource,
+    /(\n\s+@Column\(\{ default: 0 \}\)\s+shares: number;)/,
+`$1
 
     @Column({ default: 0 })
-    rejectedShares: number;`);
+    rejectedShares: number;`,
+    'insert AddressSettingsEntity.rejectedShares');
   fs.writeFileSync(addressSettingsEntity, addressSettingsEntitySource);
 }
 
@@ -137,14 +132,14 @@ if (!clientControllerSource.includes('rejectedShares: addressSettings?.rejectedS
 const clientStatisticsEntity = path.join(backend, 'src/ORM/client-statistics/client-statistics.entity.ts');
 let clientStatisticsEntitySource = fs.readFileSync(clientStatisticsEntity, 'utf8');
 if (!clientStatisticsEntitySource.includes('rejectedCount: number')) {
-  clientStatisticsEntitySource = clientStatisticsEntitySource.replace(
-`    @Column({ default: 0, type: 'integer' })
-    acceptedCount: number;`,
-`    @Column({ default: 0, type: 'integer' })
-    acceptedCount: number;
+  clientStatisticsEntitySource = replaceOrThrow(
+    clientStatisticsEntitySource,
+    /(\n\s+@Column\(\{ default: 0, type: 'integer' \}\)\s+acceptedCount: number;)/,
+`$1
 
     @Column({ default: 0, type: 'integer' })
-    rejectedCount: number;`);
+    rejectedCount: number;`,
+    'insert ClientStatisticsEntity.rejectedCount');
   fs.writeFileSync(clientStatisticsEntity, clientStatisticsEntitySource);
 }
 
@@ -180,13 +175,23 @@ if (!clientStatisticsServiceSource.includes('rejectedSharesLast10Minutes')) {
 
 const clientStatistics = path.join(backend, 'src/models/StratumV1ClientStatistics.ts');
 let clientStatisticsSource = fs.readFileSync(clientStatistics, 'utf8');
+if (!clientStatisticsSource.includes('private rejectedCount: number = 0;')) {
+  clientStatisticsSource = replaceOrThrow(
+    clientStatisticsSource,
+    /(\n\s+private acceptedCount: number = 0;\r?\n)/,
+    `$1    private rejectedCount: number = 0;\n`,
+    'insert StratumV1ClientStatistics.rejectedCount field');
+}
+clientStatisticsSource = clientStatisticsSource.replaceAll(
+  '                acceptedCount: this.acceptedCount,\n                address: client.address,',
+  '                acceptedCount: this.acceptedCount,\n                rejectedCount: this.rejectedCount,\n                address: client.address,');
+clientStatisticsSource = clientStatisticsSource.replace(
+  '            this.acceptedCount = 1\n            await this.clientStatisticsService.insert({',
+  '            this.acceptedCount = 1\n            this.rejectedCount = 0;\n            await this.clientStatisticsService.insert({');
 if (!clientStatisticsSource.includes('public async addRejectedShare(client: ClientEntity)')) {
-  clientStatisticsSource = clientStatisticsSource
-    .replace('    private acceptedCount: number = 0;\n', '    private acceptedCount: number = 0;\n    private rejectedCount: number = 0;\n')
-    .replaceAll('                acceptedCount: this.acceptedCount,\n', '                acceptedCount: this.acceptedCount,\n                rejectedCount: this.rejectedCount,\n')
-    .replace('            this.acceptedCount = 1\n', '            this.acceptedCount = 1\n            this.rejectedCount = 0;\n')
-    .replace(
-`\n    public getSuggestedDifficulty(clientDifficulty: number) {`,
+  clientStatisticsSource = replaceOrThrow(
+    clientStatisticsSource,
+    /\n\s+public getSuggestedDifficulty\(clientDifficulty: number\) \{/,
 `\n    public async addRejectedShare(client: ClientEntity) {
         const coeff = 1000 * 60 * 10;
         const date = new Date();
@@ -249,9 +254,10 @@ if (!clientStatisticsSource.includes('public async addRejectedShare(client: Clie
         }
     }
 
-    public getSuggestedDifficulty(clientDifficulty: number) {`);
-  fs.writeFileSync(clientStatistics, clientStatisticsSource);
+    public getSuggestedDifficulty(clientDifficulty: number) {`,
+    'insert StratumV1ClientStatistics.addRejectedShare');
 }
+fs.writeFileSync(clientStatistics, clientStatisticsSource);
 
 const stratumClient = path.join(backend, 'src/models/StratumV1Client.ts');
 let stratumClientSource = fs.readFileSync(stratumClient, 'utf8');
@@ -311,6 +317,22 @@ if (!appControllerSource.includes("@Get('info/addresses')")) {
 }
 `);
   fs.writeFileSync(appController, appControllerSource);
+}
+
+const requiredBackendPatches = [
+  [addressSettingsService, 'public async addRejectedShare(address: string)'],
+  [addressSettingsEntity, 'rejectedShares: number'],
+  [clientStatisticsEntity, 'rejectedCount: number'],
+  [clientStatisticsService, 'rejectedSharesLast10Minutes'],
+  [clientStatistics, 'private rejectedCount: number = 0;'],
+  [clientStatistics, 'public async addRejectedShare(client: ClientEntity)'],
+  [stratumClient, 'await this.statistics.addRejectedShare(this.entity);'],
+  [appController, "@Get('info/addresses')"],
+];
+for (const [file, needle] of requiredBackendPatches) {
+  if (!fs.readFileSync(file, 'utf8').includes(needle)) {
+    throw new Error(`Public Pool patch failed: ${path.relative(backend, file)} is missing ${needle}`);
+  }
 }
 JS
 

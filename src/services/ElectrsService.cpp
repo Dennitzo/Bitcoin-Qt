@@ -203,18 +203,8 @@ void ElectrsService::handleStdout(const QString& line)
         return;
     }
     ManagedService::handleStdout(line);
-    if (line.contains("starting config compaction", Qt::CaseInsensitive)) {
-        m_compactionPhase = "Config Compaction";
-        m_compactionElapsed.restart();
-        m_compactionTimer.start();
-        updateCompactionStatus();
-    } else if (line.contains("starting headers compaction", Qt::CaseInsensitive)) {
-        m_compactionPhase = "Headers Compaction";
-        m_compactionElapsed.restart();
-        m_compactionTimer.start();
-        updateCompactionStatus();
-    } else if (line.contains("starting txid compaction", Qt::CaseInsensitive)) {
-        m_compactionPhase = "Txid Compaction";
+    if (line.contains("starting", Qt::CaseInsensitive) && line.contains("compaction", Qt::CaseInsensitive)) {
+        m_compactionPhase = "Compaction";
         m_compactionElapsed.restart();
         m_compactionTimer.start();
         updateCompactionStatus();

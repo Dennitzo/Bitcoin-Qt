@@ -39,7 +39,6 @@ private:
     QString formatBestShare(double bestShare) const;
     QString formatBestSharePercent(double bestShare, double networkDifficulty) const;
     int ratioProgress(double value, double maximum) const;
-    int rangeProgress(double value, double minimum, double maximum) const;
     QString formatUptime(qint64 seconds) const;
     void showActionOverlay(const QString& title, const QString& text);
     void positionActionOverlay();
@@ -78,10 +77,7 @@ private:
     QProgressBar* m_publicPoolBestShareProgress = nullptr;
     QFrame* m_actionOverlay = nullptr;
     QWidget* m_publicPoolStatsGroup = nullptr;
-    double m_sessionMinMinerHashrate = 0.0;
     double m_sessionMaxMinerHashrate = 0.0;
-    double m_sessionMinNetworkHashrate = 0.0;
-    double m_sessionMaxNetworkHashrate = 0.0;
     QTimer m_storageTimer;
     QGridLayout* m_metricsGrid = nullptr;
     QGridLayout* m_publicPoolStatsGrid = nullptr;
