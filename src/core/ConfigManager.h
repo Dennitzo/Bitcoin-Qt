@@ -27,6 +27,7 @@ public:
     QString electrsDataDir() const;
     QString mempoolDataDir() const;
     QString mempoolDatabaseDir() const;
+    QString publicPoolDataDir() const;
 
     QString bitcoinExecutable() const;
     QString electrsExecutable() const;

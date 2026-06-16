@@ -163,6 +163,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     root->addWidget(statisticsGroup);
 
     auto* publicPoolStatsGroup = createGroup(&m_publicPoolStatsGrid, this);
+    m_publicPoolStatsGroup = publicPoolStatsGroup;
     auto* minerHashrateWidget = new QWidget(this);
     auto* minerHashrateLayout = new QVBoxLayout(minerHashrateWidget);
     minerHashrateLayout->setContentsMargins(0, 0, 0, 0);
@@ -268,6 +269,7 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     for (int i = 0; i < m_serviceCards.size(); ++i) {
         m_servicesGrid->addWidget(m_serviceCards.at(i), 0, i);
     }
+    updatePublicPoolStatsVisibility();
 }
 
 void DashboardPage::resizeEvent(QResizeEvent* event)
@@ -319,6 +321,9 @@ void DashboardPage::updateServiceStatus(const ServiceStatus& status)
     }
     if (auto* stop = m_stopButtons.value(status.id, nullptr)) {
         stop->setEnabled(status.state != ServiceState::Stopped);
+    }
+    if (status.id == "public-pool") {
+        updatePublicPoolStatsVisibility();
     }
 }
 
@@ -429,13 +434,14 @@ QString DashboardPage::formatBestSharePercent(double bestShare, double networkDi
     }
 
     const double percent = (bestShare / networkDifficulty) * 100.0;
-    if (percent >= 1.0) {
-        return QString("%1 %").arg(percent, 0, 'f', 2);
+    if (percent >= 100.0) {
+        return QString("%1 %").arg(QString::number(percent, 'f', 0));
     }
-    if (percent >= 0.01) {
-        return QString("%1 %").arg(percent, 0, 'f', 4);
+    if (percent >= 0.000001) {
+        return QString("%1 %").arg(QString::number(percent, 'f', 6));
     }
-    return QString("%1 %").arg(percent, 0, 'e', 2);
+
+    return QString("%1 %").arg(QString::number(percent, 'g', 2));
 }
 
 int DashboardPage::ratioProgress(double value, double maximum) const
@@ -468,6 +474,15 @@ void DashboardPage::positionActionOverlay()
     const int x = (width() - m_actionOverlay->width()) / 2;
     const int y = (height() - m_actionOverlay->height()) / 2;
     m_actionOverlay->move(qMax(16, x), qMax(16, y));
+}
+
+void DashboardPage::updatePublicPoolStatsVisibility()
+{
+    if (!m_publicPoolStatsGroup) {
+        return;
+    }
+    const ServiceState state = m_serviceStatuses.value("public-pool").state;
+    m_publicPoolStatsGroup->setVisible(state == ServiceState::Running);
 }
 
 QString DashboardPage::formatUptime(qint64 seconds) const

@@ -30,6 +30,15 @@ double numberValue(const QJsonObject& object, const QString& key)
     return 0.0;
 }
 
+double sumNumberValue(const QJsonArray& array, const QString& key)
+{
+    double total = 0.0;
+    for (const QJsonValue& value : array) {
+        total += numberValue(value.toObject(), key);
+    }
+    return total;
+}
+
 QDateTime parseIsoDate(const QString& value)
 {
     QDateTime date = QDateTime::fromString(value, Qt::ISODateWithMs);
@@ -106,7 +115,10 @@ void PublicPoolService::startBackend()
     }
 
     setState(ServiceState::Starting, "Stratum/API startet");
-    m_backend.setWorkingDirectory(QDir(RuntimePaths::runtimeRoot()).filePath("public-pool/backend"));
+    QDir dataDir(config().publicPoolDataDir());
+    dataDir.mkpath(".");
+    dataDir.mkpath("DB");
+    m_backend.setWorkingDirectory(dataDir.absolutePath());
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert("BITCOIN_RPC_URL", "http://127.0.0.1");
     env.insert("BITCOIN_RPC_USER", config().rpcUser());
@@ -118,13 +130,14 @@ void PublicPoolService::startBackend()
     env.insert("STRATUM_PORT", QString::number(config().publicPoolStratumPort()));
     env.insert("STRATUM_MAX_CONNECTIONS_PER_LISTENER", "10000");
     env.insert("API_SECURE", "false");
+    env.insert("NODE_APP_INSTANCE", "0");
     env.insert("NETWORK", config().network() == BitcoinNetwork::Mainnet ? "mainnet" : "testnet");
     env.insert("POOL_IDENTIFIER", "Bitcoin-Qt Public Pool");
     if (!config().publicPoolPayoutAddress().isEmpty()) {
         env.insert("DEV_FEE_ADDRESS", config().publicPoolPayoutAddress());
     }
     m_backend.setProcessEnvironment(env);
-    m_backend.start(node, {"dist/main.js"});
+    m_backend.start(node, {script});
     m_backendHealth.start();
 }
 
@@ -250,11 +263,15 @@ void PublicPoolService::refreshStats()
                 if (infoReply->error() == QNetworkReply::NoError) {
                     const QJsonObject info = QJsonDocument::fromJson(infoReply->readAll()).object();
                     const QJsonArray highScores = info.value("highScores").toArray();
+                    const QJsonArray userAgents = info.value("userAgents").toArray();
+                    if (!userAgents.isEmpty()) {
+                        stats.minerCount = std::max(stats.minerCount, static_cast<int>(sumNumberValue(userAgents, "count")));
+                        stats.minerHashrate = std::max(stats.minerHashrate, sumNumberValue(userAgents, "totalHashRate"));
+                    }
                     if (!highScores.isEmpty()) {
                         stats.bestShare = numberValue(highScores.first().toObject(), "bestDifficulty");
                     }
                     if (stats.bestShare <= 0.0) {
-                        const QJsonArray userAgents = info.value("userAgents").toArray();
                         for (const QJsonValue& value : userAgents) {
                             stats.bestShare = std::max(stats.bestShare, numberValue(value.toObject(), "bestDifficulty"));
                         }

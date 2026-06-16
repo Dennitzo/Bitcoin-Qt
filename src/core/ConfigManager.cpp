@@ -113,6 +113,11 @@ QString ConfigManager::mempoolDatabaseDir() const
     return serviceDir("mempool-db");
 }
 
+QString ConfigManager::publicPoolDataDir() const
+{
+    return serviceDir("public-pool");
+}
+
 QString ConfigManager::bitcoinExecutable() const
 {
     return executableSetting(m_settings, "executables/bitcoind", RuntimePaths::executable("bitcoin/bin/bitcoind"));

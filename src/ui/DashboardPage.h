@@ -42,6 +42,7 @@ private:
     QString formatUptime(qint64 seconds) const;
     void showActionOverlay(const QString& title, const QString& text);
     void positionActionOverlay();
+    void updatePublicPoolStatsVisibility();
     void retranslate();
     void updateStorage();
 
@@ -75,6 +76,7 @@ private:
     QProgressBar* m_publicPoolNetworkHashrateProgress = nullptr;
     QProgressBar* m_publicPoolBestShareProgress = nullptr;
     QFrame* m_actionOverlay = nullptr;
+    QWidget* m_publicPoolStatsGroup = nullptr;
     double m_sessionMaxMinerHashrate = 0.0;
     double m_sessionMaxNetworkHashrate = 0.0;
     QTimer m_storageTimer;

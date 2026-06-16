@@ -1,5 +1,7 @@
 #include "NodePage.h"
 
+#include <QShowEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <utility>
@@ -18,6 +20,11 @@ NodePage::NodePage(ConfigManager& config, QString storageId, const QString& wait
     QObject::connect(m_webView, &QWebEngineView::urlChanged, this, [this](const QUrl& url) {
         m_config.setWebViewUrl(m_storageId, url);
     });
+    QObject::connect(&m_autoReloadTimer, &QTimer::timeout, this, [this]() {
+        if (m_webView->url().isValid()) {
+            m_webView->reload();
+        }
+    });
     root->addWidget(m_webView, 1);
 }
 
@@ -30,6 +37,24 @@ void NodePage::loadUrl(const QUrl& url)
 {
     const QUrl savedUrl = m_config.webViewUrl(m_storageId);
     m_webView->load(isSameOrigin(savedUrl, url) ? savedUrl : url);
+}
+
+void NodePage::setAutoReloadInterval(int milliseconds)
+{
+    if (milliseconds <= 0) {
+        m_autoReloadTimer.stop();
+        return;
+    }
+    m_autoReloadTimer.setInterval(milliseconds);
+    m_autoReloadTimer.start();
+}
+
+void NodePage::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+    if (m_autoReloadTimer.isActive() && m_webView->url().isValid()) {
+        m_webView->reload();
+    }
 }
 
 bool NodePage::isSameOrigin(const QUrl& left, const QUrl& right) const

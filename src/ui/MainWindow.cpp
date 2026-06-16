@@ -134,6 +134,7 @@ void MainWindow::buildUi()
     m_electrsLog = new LogsPage(appText(m_config.language(), "logs.electrs"), {"electrs"}, m_pages);
     m_mempoolPage = new NodePage(m_config, "mempool", appText(m_config.language(), "web.mempoolWaiting"), m_pages);
     m_publicPoolPage = new NodePage(m_config, "publicPool", appText(m_config.language(), "web.publicPoolWaiting"), m_pages);
+    m_publicPoolPage->setAutoReloadInterval(60000);
     m_settings = new SettingsPage(m_config, m_pages);
     m_pages->addWidget(m_dashboard);
     m_pages->addWidget(m_bitcoindLog);
@@ -275,7 +276,8 @@ void MainWindow::updateSidebarAvailability()
         m_electrsItem->setHidden(!serviceVisible("electrs"));
     }
     if (m_mempoolItem) {
-        m_mempoolItem->setHidden(!serviceVisible("mempool"));
+        const ServiceStatus service = m_serviceStatuses.value("mempool");
+        m_mempoolItem->setHidden(!(bitcoinSynced && service.state == ServiceState::Running));
     }
     if (m_publicPoolItem) {
         m_publicPoolItem->setHidden(!serviceVisible("public-pool"));
