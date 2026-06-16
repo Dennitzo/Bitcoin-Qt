@@ -14,6 +14,11 @@ public:
 
     void start() override;
     void stop() override;
+    ElectrsSyncStatus syncStatus() const;
+    void setTargetHeaderHeight(int height);
+
+Q_SIGNALS:
+    void syncStatusChanged(const ElectrsSyncStatus& status);
 
 private:
     QStringList arguments() const;
@@ -28,5 +33,6 @@ private:
     QTimer m_healthTimer;
     QTimer m_readinessTimer;
     RpcClient m_rpc;
+    ElectrsSyncStatus m_syncStatus;
     bool m_startRequested = false;
 };

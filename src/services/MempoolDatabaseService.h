@@ -25,7 +25,6 @@ private:
     void checkPort();
     void handleStartupFailure(const QString& output);
     bool resetDatabaseDirectory();
-    bool copyInitializedDatabase();
     void cleanupInitializationDir();
     bool isInitialized() const;
     bool writeInitSql() const;

@@ -27,6 +27,7 @@ public:
     void stopService(const QString& id);
 
     BitcoinNodeStatus bitcoinStatus() const;
+    ElectrsSyncStatus electrsSyncStatus() const;
     QList<ServiceStatus> statuses() const;
     QUrl mempoolUrl() const;
     QUrl publicPoolUrl() const;
@@ -34,6 +35,7 @@ public:
 Q_SIGNALS:
     void serviceStatusChanged(const ServiceStatus& status);
     void bitcoinStatusChanged(const BitcoinNodeStatus& status);
+    void electrsSyncStatusChanged(const ElectrsSyncStatus& status);
     void mempoolFrontendAvailable(const QUrl& url);
     void publicPoolFrontendAvailable(const QUrl& url);
     void publicPoolStatsChanged(const PublicPoolStats& stats);

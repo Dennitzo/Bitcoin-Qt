@@ -7,9 +7,12 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QColor>
+#include <QFrame>
+#include <QResizeEvent>
 #include <QStorageInfo>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -81,6 +84,10 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     auto* statisticsGroup = createGroup(&m_metricsGrid, this);
 
     m_blockHeight = createMetricLabel(text("dashboard.blockHeight"), "0", this);
+    m_blockHeightProgress = new QProgressBar(this);
+    m_blockHeightProgress->setRange(0, 10000);
+    m_blockHeightProgress->setTextVisible(false);
+    m_blockHeightProgress->setFixedHeight(8);
     m_sync = createMetricLabel(text("dashboard.sync"), "0.00 %", this);
     m_syncProgress = new QProgressBar(this);
     m_syncProgress->setRange(0, 10000);
@@ -92,22 +99,52 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     m_storageProgress->setTextVisible(false);
     m_storageProgress->setFixedHeight(8);
     m_peers = createMetricLabel("Peers", "0", this);
-    m_network = createMetricLabel(text("dashboard.network"), "unknown", this);
+    m_electrsSync = createMetricLabel(text("dashboard.electrsSync"), "0.00 %", this);
+    m_electrsSyncProgress = new QProgressBar(this);
+    m_electrsSyncProgress->setRange(0, 10000);
+    m_electrsSyncProgress->setTextVisible(false);
+    m_electrsSyncProgress->setFixedHeight(8);
     m_publicPoolMinerHashrate = createMetricLabel(text("publicPool.minerHashrate"), "0 TH/s", this);
+    m_publicPoolMinerHashrateProgress = new QProgressBar(this);
+    m_publicPoolMinerHashrateProgress->setRange(0, 10000);
+    m_publicPoolMinerHashrateProgress->setTextVisible(false);
+    m_publicPoolMinerHashrateProgress->setFixedHeight(8);
     m_publicPoolNetworkHashrate = createMetricLabel(text("publicPool.networkHashrate"), "0 TH/s", this);
+    m_publicPoolNetworkHashrateProgress = new QProgressBar(this);
+    m_publicPoolNetworkHashrateProgress->setRange(0, 10000);
+    m_publicPoolNetworkHashrateProgress->setTextVisible(false);
+    m_publicPoolNetworkHashrateProgress->setFixedHeight(8);
     m_publicPoolBestShare = createMetricLabel(text("publicPool.bestShare"), "0", this);
     m_publicPoolMinerUptime = createMetricLabel(text("publicPool.minerUptime"), "0m", this);
     m_publicPoolBestSharePercent = createMetricLabel(text("publicPool.bestSharePercent"), "0 %", this);
+    m_publicPoolBestShareProgress = new QProgressBar(this);
+    m_publicPoolBestShareProgress->setRange(0, 10000);
+    m_publicPoolBestShareProgress->setTextVisible(false);
+    m_publicPoolBestShareProgress->setFixedHeight(8);
     m_bitcoin = createMetricLabel("Bitcoin Core", text("state.stopped"), this);
     m_electrs = createMetricLabel("Electrs", text("state.stopped"), this);
     m_mempool = createMetricLabel("Mempool", text("dashboard.offline"), this);
     m_publicPool = createMetricLabel("Public Pool", text("dashboard.offline"), this);
+    auto* blockHeightWidget = new QWidget(this);
+    auto* blockHeightLayout = new QVBoxLayout(blockHeightWidget);
+    blockHeightLayout->setContentsMargins(0, 0, 0, 0);
+    blockHeightLayout->setSpacing(8);
+    blockHeightLayout->addWidget(m_blockHeight);
+    blockHeightLayout->addWidget(m_blockHeightProgress);
+
     auto* syncWidget = new QWidget(this);
     auto* syncLayout = new QVBoxLayout(syncWidget);
     syncLayout->setContentsMargins(0, 0, 0, 0);
     syncLayout->setSpacing(8);
     syncLayout->addWidget(m_sync);
     syncLayout->addWidget(m_syncProgress);
+
+    auto* electrsSyncWidget = new QWidget(this);
+    auto* electrsSyncLayout = new QVBoxLayout(electrsSyncWidget);
+    electrsSyncLayout->setContentsMargins(0, 0, 0, 0);
+    electrsSyncLayout->setSpacing(8);
+    electrsSyncLayout->addWidget(m_electrsSync);
+    electrsSyncLayout->addWidget(m_electrsSyncProgress);
 
     auto* storageWidget = new QWidget(this);
     auto* storageLayout = new QVBoxLayout(storageWidget);
@@ -117,21 +154,42 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     storageLayout->addWidget(m_storageProgress);
 
     m_metricCards = {
-        createCard(m_blockHeight, this),
+        createCard(blockHeightWidget, this),
         createCard(syncWidget, this),
+        createCard(electrsSyncWidget, this),
         createCard(storageWidget, this),
         createCard(m_peers, this),
-        createCard(m_network, this),
     };
     root->addWidget(statisticsGroup);
 
     auto* publicPoolStatsGroup = createGroup(&m_publicPoolStatsGrid, this);
+    auto* minerHashrateWidget = new QWidget(this);
+    auto* minerHashrateLayout = new QVBoxLayout(minerHashrateWidget);
+    minerHashrateLayout->setContentsMargins(0, 0, 0, 0);
+    minerHashrateLayout->setSpacing(8);
+    minerHashrateLayout->addWidget(m_publicPoolMinerHashrate);
+    minerHashrateLayout->addWidget(m_publicPoolMinerHashrateProgress);
+
+    auto* networkHashrateWidget = new QWidget(this);
+    auto* networkHashrateLayout = new QVBoxLayout(networkHashrateWidget);
+    networkHashrateLayout->setContentsMargins(0, 0, 0, 0);
+    networkHashrateLayout->setSpacing(8);
+    networkHashrateLayout->addWidget(m_publicPoolNetworkHashrate);
+    networkHashrateLayout->addWidget(m_publicPoolNetworkHashrateProgress);
+
+    auto* bestSharePercentWidget = new QWidget(this);
+    auto* bestSharePercentLayout = new QVBoxLayout(bestSharePercentWidget);
+    bestSharePercentLayout->setContentsMargins(0, 0, 0, 0);
+    bestSharePercentLayout->setSpacing(8);
+    bestSharePercentLayout->addWidget(m_publicPoolBestSharePercent);
+    bestSharePercentLayout->addWidget(m_publicPoolBestShareProgress);
+
     m_publicPoolStatCards = {
-        createCard(m_publicPoolMinerHashrate, this),
-        createCard(m_publicPoolNetworkHashrate, this),
-        createCard(m_publicPoolBestShare, this),
+        createCard(minerHashrateWidget, this),
+        createCard(networkHashrateWidget, this),
         createCard(m_publicPoolMinerUptime, this),
-        createCard(m_publicPoolBestSharePercent, this),
+        createCard(m_publicPoolBestShare, this),
+        createCard(bestSharePercentWidget, this),
     };
     root->addWidget(publicPoolStatsGroup);
 
@@ -151,23 +209,44 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
         auto* controls = new QHBoxLayout();
         auto* start = new QPushButton(text("app.start"), wrapper);
         auto* stop = new QPushButton(text("app.stop"), wrapper);
-        start->setObjectName("secondaryButton");
-        stop->setObjectName("secondaryButton");
+        start->setObjectName("serviceActionButton");
+        stop->setObjectName("serviceActionButton");
         controls->addWidget(start);
         controls->addWidget(stop);
         layout->addLayout(controls);
         m_startButtons.insert(services.at(i).first, start);
         m_stopButtons.insert(services.at(i).first, stop);
         QObject::connect(start, &QPushButton::clicked, this, [this, id = services.at(i).first]() {
-            Q_EMIT startServiceRequested(id);
+            showActionOverlay(text("dashboard.serviceStartTitle"), text("dashboard.serviceStartText").arg(id));
+            QTimer::singleShot(75, this, [this, id]() {
+                Q_EMIT startServiceRequested(id);
+            });
         });
         QObject::connect(stop, &QPushButton::clicked, this, [this, id = services.at(i).first]() {
-            Q_EMIT stopServiceRequested(id);
+            showActionOverlay(text("dashboard.serviceStopTitle"), text("dashboard.serviceStopText").arg(id));
+            QTimer::singleShot(75, this, [this, id]() {
+                Q_EMIT stopServiceRequested(id);
+            });
         });
         m_serviceCards << createCard(wrapper, this, 168);
     }
     root->addWidget(servicesGroup);
     root->addStretch();
+
+    m_actionOverlay = new QFrame(this);
+    m_actionOverlay->setObjectName("settingsSavedOverlay");
+    m_actionOverlay->setFixedSize(420, 126);
+    m_actionOverlay->hide();
+    auto* overlayLayout = new QVBoxLayout(m_actionOverlay);
+    overlayLayout->setContentsMargins(24, 20, 24, 20);
+    overlayLayout->setSpacing(6);
+    m_actionOverlayTitle = new QLabel(m_actionOverlay);
+    m_actionOverlayTitle->setObjectName("settingsSavedOverlayTitle");
+    m_actionOverlayText = new QLabel(m_actionOverlay);
+    m_actionOverlayText->setObjectName("settingsSavedOverlayText");
+    m_actionOverlayText->setWordWrap(true);
+    overlayLayout->addWidget(m_actionOverlayTitle);
+    overlayLayout->addWidget(m_actionOverlayText);
 
     updateStorage();
     m_storageTimer.setInterval(30000);
@@ -179,8 +258,8 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     }
     m_metricsGrid->setColumnStretch(0, 1);
     m_metricsGrid->setColumnStretch(1, 1);
-    m_metricsGrid->setColumnStretch(2, 2);
-    m_metricsGrid->setColumnStretch(3, 1);
+    m_metricsGrid->setColumnStretch(2, 1);
+    m_metricsGrid->setColumnStretch(3, 2);
     m_metricsGrid->setColumnStretch(4, 1);
     for (int i = 0; i < m_publicPoolStatCards.size(); ++i) {
         m_publicPoolStatsGrid->addWidget(m_publicPoolStatCards.at(i), 0, i);
@@ -191,14 +270,30 @@ DashboardPage::DashboardPage(ConfigManager& config, QWidget* parent)
     }
 }
 
+void DashboardPage::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+    positionActionOverlay();
+}
+
 void DashboardPage::updateBitcoinStatus(const BitcoinNodeStatus& status)
 {
     m_lastBitcoinStatus = status;
     m_blockHeight->setText(metricHtml("dashboard.blockHeight", QString::number(status.blockHeight)));
+    m_blockHeightProgress->setValue(ratioProgress(status.blockHeight, status.headerHeight));
     m_sync->setText(metricHtml("dashboard.sync", QString("%1 %").arg(status.verificationProgress * 100.0, 0, 'f', 2)));
     m_syncProgress->setValue(static_cast<int>(status.verificationProgress * 10000.0));
     m_peers->setText(metricHtml("dashboard.peers", QString::number(status.peers)));
-    m_network->setText(metricHtml("dashboard.network", status.network));
+    updateElectrsSyncStatus(m_lastElectrsSyncStatus);
+}
+
+void DashboardPage::updateElectrsSyncStatus(const ElectrsSyncStatus& status)
+{
+    m_lastElectrsSyncStatus = status;
+    const int target = status.targetHeaderHeight > 0 ? status.targetHeaderHeight : m_lastBitcoinStatus.headerHeight;
+    const int progress = ratioProgress(status.indexedHeaderHeight, target);
+    m_electrsSync->setText(metricHtml("dashboard.electrsSync", QString("%1 %").arg(progress / 100.0, 0, 'f', 2)));
+    m_electrsSyncProgress->setValue(progress);
 }
 
 void DashboardPage::updateServiceStatus(const ServiceStatus& status)
@@ -232,18 +327,31 @@ void DashboardPage::updatePublicPoolStats(const PublicPoolStats& stats)
     m_lastPublicPoolStats = stats;
     if (!stats.online || stats.minerCount <= 0) {
         m_publicPoolMinerHashrate->setText(metricHtml("publicPool.minerHashrate", "0 TH/s"));
+        m_publicPoolMinerHashrateProgress->setValue(0);
         m_publicPoolNetworkHashrate->setText(metricHtml("publicPool.networkHashrate", "0 TH/s"));
+        m_publicPoolNetworkHashrateProgress->setValue(0);
         m_publicPoolBestShare->setText(metricHtml("publicPool.bestShare", "0"));
         m_publicPoolMinerUptime->setText(metricHtml("publicPool.minerUptime", "0m"));
         m_publicPoolBestSharePercent->setText(metricHtml("publicPool.bestSharePercent", "0 %"));
+        m_publicPoolBestShareProgress->setValue(0);
         return;
     }
 
+    if (stats.minerHashrate > m_sessionMaxMinerHashrate && std::isfinite(stats.minerHashrate)) {
+        m_sessionMaxMinerHashrate = stats.minerHashrate;
+    }
+    if (stats.networkHashrate > m_sessionMaxNetworkHashrate && std::isfinite(stats.networkHashrate)) {
+        m_sessionMaxNetworkHashrate = stats.networkHashrate;
+    }
+
     m_publicPoolMinerHashrate->setText(metricHtml("publicPool.minerHashrate", formatHashrate(stats.minerHashrate)));
+    m_publicPoolMinerHashrateProgress->setValue(ratioProgress(stats.minerHashrate, m_sessionMaxMinerHashrate));
     m_publicPoolNetworkHashrate->setText(metricHtml("publicPool.networkHashrate", formatHashrate(stats.networkHashrate)));
+    m_publicPoolNetworkHashrateProgress->setValue(ratioProgress(stats.networkHashrate, m_sessionMaxNetworkHashrate));
     m_publicPoolBestShare->setText(metricHtml("publicPool.bestShare", formatBestShare(stats.bestShare)));
     m_publicPoolMinerUptime->setText(metricHtml("publicPool.minerUptime", formatUptime(stats.minerUptimeSeconds)));
     m_publicPoolBestSharePercent->setText(metricHtml("publicPool.bestSharePercent", formatBestSharePercent(stats.bestShare, stats.networkDifficulty)));
+    m_publicPoolBestShareProgress->setValue(ratioProgress(stats.bestShare, stats.networkDifficulty));
 }
 
 QString DashboardPage::language() const
@@ -330,6 +438,38 @@ QString DashboardPage::formatBestSharePercent(double bestShare, double networkDi
     return QString("%1 %").arg(percent, 0, 'e', 2);
 }
 
+int DashboardPage::ratioProgress(double value, double maximum) const
+{
+    if (value <= 0.0 || maximum <= 0.0 || !std::isfinite(value) || !std::isfinite(maximum)) {
+        return 0;
+    }
+    const double ratio = std::clamp(value / maximum, 0.0, 1.0);
+    return static_cast<int>(ratio * 10000.0);
+}
+
+void DashboardPage::showActionOverlay(const QString& title, const QString& text)
+{
+    if (!m_actionOverlay || !m_actionOverlayTitle || !m_actionOverlayText) {
+        return;
+    }
+    m_actionOverlayTitle->setText(title);
+    m_actionOverlayText->setText(text);
+    positionActionOverlay();
+    m_actionOverlay->raise();
+    m_actionOverlay->show();
+    QTimer::singleShot(3200, m_actionOverlay, &QFrame::hide);
+}
+
+void DashboardPage::positionActionOverlay()
+{
+    if (!m_actionOverlay) {
+        return;
+    }
+    const int x = (width() - m_actionOverlay->width()) / 2;
+    const int y = (height() - m_actionOverlay->height()) / 2;
+    m_actionOverlay->move(qMax(16, x), qMax(16, y));
+}
+
 QString DashboardPage::formatUptime(qint64 seconds) const
 {
     if (seconds <= 0) {
@@ -359,6 +499,7 @@ void DashboardPage::retranslate()
         button->setText(text("app.stop"));
     }
     updateBitcoinStatus(m_lastBitcoinStatus);
+    updateElectrsSyncStatus(m_lastElectrsSyncStatus);
     updatePublicPoolStats(m_lastPublicPoolStats);
     const QList<ServiceStatus> statuses = m_serviceStatuses.values();
     for (const ServiceStatus& status : statuses) {

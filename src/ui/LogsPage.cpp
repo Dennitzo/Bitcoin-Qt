@@ -1,5 +1,6 @@
 #include "LogsPage.h"
 
+#include <QScrollBar>
 #include <QTextCursor>
 #include <QTextOption>
 #include <QVBoxLayout>
@@ -17,9 +18,14 @@ LogsPage::LogsPage(const QString& title, const QStringList& serviceIds, QWidget*
     m_editor->setLineWrapMode(QPlainTextEdit::WidgetWidth);
     m_editor->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     m_editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_editor->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_editor->setObjectName("logView");
     root->addWidget(m_editor, 1);
+
+    QObject::connect(m_editor->verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int value) {
+        const QScrollBar* bar = m_editor->verticalScrollBar();
+        m_autoScroll = value >= bar->maximum() - 2;
+    });
 }
 
 void LogsPage::appendLogLine(const QString& serviceId, const QString& line)
@@ -27,6 +33,14 @@ void LogsPage::appendLogLine(const QString& serviceId, const QString& line)
     if (!m_serviceIds.contains(serviceId)) {
         return;
     }
+    QScrollBar* bar = m_editor->verticalScrollBar();
+    const bool atBottom = bar->value() >= bar->maximum() - 2;
+    const int previousValue = bar->value();
     m_editor->appendPlainText(line);
-    m_editor->moveCursor(QTextCursor::End);
+    if (m_autoScroll || atBottom) {
+        m_editor->moveCursor(QTextCursor::End);
+        bar->setValue(bar->maximum());
+        return;
+    }
+    bar->setValue(previousValue);
 }

@@ -16,4 +16,5 @@ public Q_SLOTS:
 private:
     QPlainTextEdit* m_editor = nullptr;
     QStringList m_serviceIds;
+    bool m_autoScroll = true;
 };

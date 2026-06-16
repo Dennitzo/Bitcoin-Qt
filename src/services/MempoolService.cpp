@@ -75,6 +75,13 @@ void MempoolService::waitForDatabase()
     setState(ServiceState::Starting, "Warte auf Mempool DB");
     auto* socket = new QTcpSocket(this);
     QObject::connect(socket, &QTcpSocket::connected, this, [this, socket]() {
+        if (!databaseDirectoryInitialized()) {
+            socket->disconnectFromHost();
+            socket->deleteLater();
+            m_databaseHealth.stop();
+            setState(ServiceState::Error, "Mempool DB Port belegt, aber Datenbank ist nicht initialisiert");
+            return;
+        }
         m_databaseHealth.stop();
         socket->disconnectFromHost();
         socket->deleteLater();
@@ -118,6 +125,7 @@ void MempoolService::startBackend()
         setState(ServiceState::Error, "Mempool Konfiguration konnte nicht geschrieben werden");
         return;
     }
+    QFile::remove(QDir(config().mempoolDatabaseDir()).filePath("mempool-mempool.pid"));
 
     setState(ServiceState::Starting, "Backend startet");
     m_backend.setWorkingDirectory(QDir(RuntimePaths::runtimeRoot()).filePath("mempool"));
@@ -179,14 +187,21 @@ void MempoolService::checkFrontend()
     if (!m_startRequested) {
         return;
     }
-    QNetworkReply* reply = m_network.get(QNetworkRequest(frontendUrl()));
+    QNetworkReply* reply = m_network.get(QNetworkRequest(frontendUrl().resolved(QUrl("/api/v1/init-data"))));
     QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        const QByteArray body = reply->readAll();
         reply->deleteLater();
         if (!m_startRequested) {
             return;
         }
         if (reply->error() != QNetworkReply::NoError) {
             setState(ServiceState::Starting, "Warte auf Mempool Frontend");
+            return;
+        }
+        const QJsonObject initData = QJsonDocument::fromJson(body).object();
+        const QJsonObject mempoolInfo = initData.value("mempoolInfo").toObject();
+        if (!mempoolInfo.value("loaded").toBool(false)) {
+            setState(ServiceState::Starting, "Warte auf Mempool Daten");
             return;
         }
         m_frontendHealth.stop();
@@ -254,6 +269,12 @@ void MempoolService::attachProcess(QProcess& child, const QString& logId)
 QString MempoolService::configFilePath() const
 {
     return QDir(config().mempoolDataDir()).filePath("mempool-config.json");
+}
+
+bool MempoolService::databaseDirectoryInitialized() const
+{
+    const QDir dir(config().mempoolDatabaseDir());
+    return dir.exists("mysql") && QFileInfo::exists(dir.filePath("ibdata1"));
 }
 
 bool MempoolService::writeBackendConfig() const

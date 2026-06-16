@@ -22,13 +22,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: macOS x64
-            runner: macos-13
-            qt-version: "6.7.3"
-            qt-host: mac
-            qt-arch: clang_64
-            build-runtime: true
-            artifact: bitcoin-qt-macos-x64
           - label: macOS ARM64
             runner: macos-14
             qt-version: "6.7.3"

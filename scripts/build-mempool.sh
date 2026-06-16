@@ -109,6 +109,37 @@ for package_dir in backend frontend; do
   fi
 done
 
+"$NODE" <<'JS'
+const fs = require('fs');
+const migrationPath = 'backend/dist/api/database-migration.js';
+let migration = fs.readFileSync(migrationPath, 'utf8');
+migration = migration.replaceAll(
+  "ALTER TABLE blocks DROP FOREIGN KEY IF EXISTS `blocks_ibfk_1`",
+  "ALTER TABLE blocks DROP FOREIGN KEY IF EXISTS `blocks_ibfk_1`');\\n      await this.$executeQuery('ALTER TABLE blocks DROP FOREIGN KEY IF EXISTS `1`"
+);
+migration = migration.replaceAll(
+  "ALTER TABLE `hashrates` DROP FOREIGN KEY `hashrates_ibfk_1`",
+  "ALTER TABLE `hashrates` DROP FOREIGN KEY IF EXISTS `hashrates_ibfk_1`"
+);
+migration = migration.replaceAll(
+  "await this.$executeQuery('START TRANSACTION;');",
+  "await this.$executeQuery('SET FOREIGN_KEY_CHECKS=0;');\\n            await this.$executeQuery('START TRANSACTION;')"
+);
+migration = migration.replaceAll(
+  "await this.$executeQuery('COMMIT;');",
+  "await this.$executeQuery('COMMIT;');\\n            await this.$executeQuery('SET FOREIGN_KEY_CHECKS=1;')"
+);
+migration = migration.replaceAll(
+  "await this.$executeQuery('ROLLBACK;');",
+  "await this.$executeQuery('ROLLBACK;');\\n            await this.$executeQuery('SET FOREIGN_KEY_CHECKS=1;')"
+);
+migration = migration.replaceAll(
+  "await this.$createMissingTablesAndIndexes(databaseSchemaVersion);",
+  "await this.$executeQuery('SET FOREIGN_KEY_CHECKS=0;');\\n            await this.$createMissingTablesAndIndexes(databaseSchemaVersion);\\n            await this.$executeQuery('SET FOREIGN_KEY_CHECKS=1;')"
+);
+fs.writeFileSync(migrationPath, migration);
+JS
+
 rm -rf "$PREFIX"
 mkdir -p "$PREFIX/backend" "$PREFIX/frontend"
 

@@ -30,6 +30,7 @@ private:
     void checkFrontend();
     void attachProcess(QProcess& child, const QString& logId);
     QString configFilePath() const;
+    bool databaseDirectoryInitialized() const;
     bool writeBackendConfig() const;
 
     QProcess m_backend;

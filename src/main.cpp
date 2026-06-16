@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
     qRegisterMetaType<ServiceStatus>("ServiceStatus");
     qRegisterMetaType<ServiceState>("ServiceState");
     qRegisterMetaType<PublicPoolStats>("PublicPoolStats");
+    qRegisterMetaType<ElectrsSyncStatus>("ElectrsSyncStatus");
 
     ConfigManager config;
     LogManager logs;

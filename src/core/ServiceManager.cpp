@@ -18,11 +18,13 @@ ServiceManager::ServiceManager(ConfigManager& config, LogManager& logs, QObject*
     wireService(m_publicPool);
 
     QObject::connect(&m_bitcoin, &BitcoinCoreService::nodeStatusChanged, this, [this](const BitcoinNodeStatus& status) {
+        m_electrs.setTargetHeaderHeight(status.headerHeight);
         Q_EMIT bitcoinStatusChanged(status);
         if (status.rpcAvailable && !status.initialBlockDownload) {
             startSyncedDependents();
         }
     });
+    QObject::connect(&m_electrs, &ElectrsService::syncStatusChanged, this, &ServiceManager::electrsSyncStatusChanged);
     QObject::connect(&m_mempool, &MempoolService::frontendAvailable, this, &ServiceManager::mempoolFrontendAvailable);
     QObject::connect(&m_publicPool, &PublicPoolService::frontendAvailable, this, &ServiceManager::publicPoolFrontendAvailable);
     QObject::connect(&m_publicPool, &PublicPoolService::statsChanged, this, &ServiceManager::publicPoolStatsChanged);
@@ -190,6 +192,11 @@ void ServiceManager::startSyncedDependents()
 BitcoinNodeStatus ServiceManager::bitcoinStatus() const
 {
     return m_bitcoin.nodeStatus();
+}
+
+ElectrsSyncStatus ServiceManager::electrsSyncStatus() const
+{
+    return m_electrs.syncStatus();
 }
 
 QList<ServiceStatus> ServiceManager::statuses() const

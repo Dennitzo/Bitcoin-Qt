@@ -7,7 +7,7 @@
 #include <QProcessEnvironment>
 
 namespace {
-bool hasIndexedHeader(const QByteArray& response)
+int indexedHeaderHeight(const QByteArray& response)
 {
     const QList<QByteArray> lines = response.split('\n');
     for (const QByteArray& line : lines) {
@@ -20,11 +20,12 @@ bool hasIndexedHeader(const QByteArray& response)
             continue;
         }
         const QJsonObject result = document.object().value("result").toObject();
-        if (result.value("height").toInt() > 0) {
-            return true;
+        const int height = result.value("height").toInt();
+        if (height > 0) {
+            return height;
         }
     }
-    return false;
+    return 0;
 }
 }
 
@@ -80,6 +81,20 @@ void ElectrsService::stop()
     m_healthTimer.stop();
     m_rpc.abortPendingRequests();
     ManagedService::stop();
+}
+
+ElectrsSyncStatus ElectrsService::syncStatus() const
+{
+    return m_syncStatus;
+}
+
+void ElectrsService::setTargetHeaderHeight(int height)
+{
+    if (height <= 0 || m_syncStatus.targetHeaderHeight == height) {
+        return;
+    }
+    m_syncStatus.targetHeaderHeight = height;
+    Q_EMIT syncStatusChanged(m_syncStatus);
 }
 
 void ElectrsService::startElectrsProcess()
@@ -139,16 +154,25 @@ void ElectrsService::checkPort()
     });
     QObject::connect(socket, &QTcpSocket::readyRead, this, [this, socket]() {
         const QByteArray response = socket->readAll();
-        if (!hasIndexedHeader(response)) {
+        const int height = indexedHeaderHeight(response);
+        if (height <= 0) {
             socket->disconnectFromHost();
             socket->deleteLater();
             return;
         }
-        m_healthTimer.stop();
+        m_syncStatus.indexedHeaderHeight = height;
+        m_syncStatus.available = true;
+        Q_EMIT syncStatusChanged(m_syncStatus);
         socket->disconnectFromHost();
         socket->deleteLater();
-        setState(ServiceState::Synced, "Electrum bereit");
-        Q_EMIT ready(id());
+        if (m_syncStatus.targetHeaderHeight > 0 && height < m_syncStatus.targetHeaderHeight) {
+            setState(ServiceState::Indexing, "Indexiert Blockchain");
+            return;
+        }
+        if (state() != ServiceState::Synced) {
+            setState(ServiceState::Synced, "Electrum bereit");
+            Q_EMIT ready(id());
+        }
     });
     QObject::connect(socket, &QTcpSocket::errorOccurred, socket, &QTcpSocket::deleteLater);
     socket->connectToHost("127.0.0.1", config().electrsPort());

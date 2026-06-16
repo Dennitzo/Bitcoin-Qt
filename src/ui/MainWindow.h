@@ -13,6 +13,7 @@
 
 #include <QListWidget>
 #include <QMainWindow>
+#include <QMap>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QWebChannel>
@@ -44,6 +45,7 @@ protected:
     ConfigManager& m_config;
     LogManager& m_logs;
     ServiceManager& m_services;
+    QMap<QString, ServiceStatus> m_serviceStatuses;
 
     QListWidget* m_sidebar = nullptr;
     QListWidgetItem* m_dashboardItem = nullptr;

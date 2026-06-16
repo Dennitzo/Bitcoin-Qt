@@ -1,7 +1,10 @@
 #include "BitcoinCoreService.h"
 
+#include <QDir>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QProcess>
 
 BitcoinCoreService::BitcoinCoreService(ConfigManager& config, LogManager& logs, QObject* parent)
     : ManagedService("bitcoind", "Bitcoin Core", config, logs, parent),
@@ -38,7 +41,48 @@ void BitcoinCoreService::stop()
     m_status.rpcAvailable = false;
     m_status.peers = 0;
     Q_EMIT nodeStatusChanged(m_status);
-    ManagedService::stop();
+
+    beginManualStop();
+    if (process().state() == QProcess::NotRunning) {
+        setState(ServiceState::Stopped, "Gestoppt");
+        endManualStop();
+        return;
+    }
+
+    setState(ServiceState::Stopped, "Wird beendet");
+
+    const QFileInfo bitcoind(config().bitcoinExecutable());
+    const QString suffix = bitcoind.fileName().endsWith(".exe", Qt::CaseInsensitive) ? ".exe" : "";
+    const QString bitcoinCli = bitcoind.dir().filePath(QString("bitcoin-cli%1").arg(suffix));
+    if (QFileInfo::exists(bitcoinCli)) {
+        QProcess cli;
+        cli.setProgram(bitcoinCli);
+        cli.setArguments({
+            QString("-rpcuser=%1").arg(config().rpcUser()),
+            QString("-rpcpassword=%1").arg(config().rpcPassword()),
+            QString("-rpcport=%1").arg(config().bitcoinRpcPort()),
+            "stop",
+        });
+        cli.start();
+        if (!cli.waitForFinished(5000) || cli.exitStatus() != QProcess::NormalExit || cli.exitCode() != 0) {
+            logs().append(id(), QString("bitcoin-cli stop fehlgeschlagen: %1").arg(QString::fromLocal8Bit(cli.readAllStandardError()).trimmed()));
+        }
+    } else {
+        logs().append(id(), QString("bitcoin-cli nicht gefunden: %1").arg(bitcoinCli));
+    }
+
+    if (!process().waitForFinished(120000)) {
+        logs().append(id(), "Bitcoin Core reagiert nicht auf RPC stop, sende Terminate");
+        process().terminate();
+        if (!process().waitForFinished(30000)) {
+            logs().append(id(), "Bitcoin Core reagiert nicht auf Terminate, erzwinge Stop");
+            process().kill();
+            process().waitForFinished(5000);
+        }
+    }
+
+    setState(ServiceState::Stopped, "Gestoppt");
+    endManualStop();
 }
 
 BitcoinNodeStatus BitcoinCoreService::nodeStatus() const
@@ -96,6 +140,7 @@ void BitcoinCoreService::applyRpcResult(const QString& method, const QJsonValue&
     if (method == "getblockchaininfo") {
         const QJsonObject object = value.toObject();
         m_status.blockHeight = object.value("blocks").toInt();
+        m_status.headerHeight = object.value("headers").toInt(m_status.blockHeight);
         m_status.verificationProgress = object.value("verificationprogress").toDouble();
         m_status.network = object.value("chain").toString("main");
         m_status.initialBlockDownload = object.value("initialblockdownload").toBool(true);

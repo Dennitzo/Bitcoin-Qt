@@ -6,40 +6,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDateTime>
-#include <QDirIterator>
-
-namespace {
-
-bool copyDirectoryRecursively(const QString& sourcePath, const QString& targetPath)
-{
-    QDir source(sourcePath);
-    if (!source.exists()) {
-        return false;
-    }
-
-    QDir().mkpath(targetPath);
-    QDirIterator it(sourcePath, QDir::NoDotAndDotDot | QDir::AllEntries, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        it.next();
-        const QString relativePath = source.relativeFilePath(it.filePath());
-        const QString target = QDir(targetPath).filePath(relativePath);
-        const QFileInfo info(it.filePath());
-        if (info.isDir()) {
-            if (!QDir().mkpath(target)) {
-                return false;
-            }
-            continue;
-        }
-        QFile::remove(target);
-        if (!QFile::copy(it.filePath(), target)) {
-            return false;
-        }
-        QFile::setPermissions(target, info.permissions());
-    }
-    return true;
-}
-
-}
 
 MempoolDatabaseService::MempoolDatabaseService(ConfigManager& config, LogManager& logs, QObject* parent)
     : ManagedService("mempool-db", "Mempool DB", config, logs, parent)
@@ -70,12 +36,11 @@ MempoolDatabaseService::MempoolDatabaseService(ConfigManager& config, LogManager
             handleStartupFailure(output.isEmpty() ? QString("MariaDB Initialisierung beendet mit Code %1").arg(exitCode) : output);
             return;
         }
-        if (!copyInitializedDatabase()) {
-            cleanupInitializationDir();
-            setState(ServiceState::Error, "MariaDB Datenbank konnte nicht auf die Festplatte kopiert werden");
+        cleanupInitializationDir();
+        if (!isInitialized()) {
+            setState(ServiceState::Error, "MariaDB Datenbank wurde nicht vollständig initialisiert");
             return;
         }
-        cleanupInitializationDir();
         if (!writeInitSql()) {
             setState(ServiceState::Error, "MariaDB Init-SQL konnte nicht geschrieben werden");
             return;
@@ -115,6 +80,10 @@ void MempoolDatabaseService::start()
         startDatabase();
         return;
     }
+    if (!QDir(config().mempoolDatabaseDir()).entryList(QDir::NoDotAndDotDot | QDir::AllEntries).isEmpty() && !resetDatabaseDirectory()) {
+        setState(ServiceState::Error, "Mempool DB konnte nicht zurückgesetzt werden");
+        return;
+    }
     initializeDatabase();
 }
 
@@ -142,7 +111,8 @@ void MempoolDatabaseService::initializeDatabase()
 
     setState(ServiceState::Starting, "Initialisiert Datenbank");
     cleanupInitializationDir();
-    m_initializationDir = QDir::temp().filePath(QString("bitcoin-qt-mempool-db-init-%1").arg(QDateTime::currentMSecsSinceEpoch()));
+    m_initializationDir = config().mempoolDatabaseDir();
+    QDir(m_initializationDir).removeRecursively();
     QDir().mkpath(m_initializationDir);
     m_initializer.setWorkingDirectory(baseDir());
     m_initializer.setProgram(installer);
@@ -243,24 +213,11 @@ bool MempoolDatabaseService::resetDatabaseDirectory()
     return true;
 }
 
-bool MempoolDatabaseService::copyInitializedDatabase()
-{
-    if (m_initializationDir.isEmpty() || !QDir(m_initializationDir).exists("mysql")) {
-        return false;
-    }
-
-    const QString dbDir = config().mempoolDatabaseDir();
-    QDir(dbDir).removeRecursively();
-    QDir().mkpath(dbDir);
-    return copyDirectoryRecursively(m_initializationDir, dbDir);
-}
-
 void MempoolDatabaseService::cleanupInitializationDir()
 {
     if (m_initializationDir.isEmpty()) {
         return;
     }
-    QDir(m_initializationDir).removeRecursively();
     m_initializationDir.clear();
 }
 

@@ -168,6 +168,11 @@ void MainWindow::connectSignals()
         updateSidebarAvailability();
     });
     QObject::connect(&m_services, &ServiceManager::serviceStatusChanged, m_dashboard, &DashboardPage::updateServiceStatus);
+    QObject::connect(&m_services, &ServiceManager::serviceStatusChanged, this, [this](const ServiceStatus& status) {
+        m_serviceStatuses.insert(status.id, status);
+        updateSidebarAvailability();
+    });
+    QObject::connect(&m_services, &ServiceManager::electrsSyncStatusChanged, m_dashboard, &DashboardPage::updateElectrsSyncStatus);
     QObject::connect(&m_services, &ServiceManager::publicPoolStatsChanged, m_dashboard, &DashboardPage::updatePublicPoolStats);
     QObject::connect(m_dashboard, &DashboardPage::startServiceRequested, &m_services, &ServiceManager::startService);
     QObject::connect(m_dashboard, &DashboardPage::stopServiceRequested, &m_services, &ServiceManager::stopService);
@@ -184,7 +189,9 @@ void MainWindow::connectSignals()
     });
 
     m_dashboard->updateBitcoinStatus(m_services.bitcoinStatus());
+    m_dashboard->updateElectrsSyncStatus(m_services.electrsSyncStatus());
     for (const ServiceStatus& status : m_services.statuses()) {
+        m_serviceStatuses.insert(status.id, status);
         m_dashboard->updateServiceStatus(status);
     }
     updateSidebarAvailability();
@@ -260,14 +267,18 @@ void MainWindow::updateSidebarAvailability()
 {
     const BitcoinNodeStatus status = m_services.bitcoinStatus();
     const bool bitcoinSynced = status.rpcAvailable && !status.initialBlockDownload;
+    const auto serviceVisible = [this, bitcoinSynced](const QString& id) {
+        const ServiceStatus service = m_serviceStatuses.value(id);
+        return bitcoinSynced && service.state != ServiceState::Stopped;
+    };
     if (m_electrsItem) {
-        m_electrsItem->setHidden(!bitcoinSynced);
+        m_electrsItem->setHidden(!serviceVisible("electrs"));
     }
     if (m_mempoolItem) {
-        m_mempoolItem->setHidden(!bitcoinSynced);
+        m_mempoolItem->setHidden(!serviceVisible("mempool"));
     }
     if (m_publicPoolItem) {
-        m_publicPoolItem->setHidden(!bitcoinSynced);
+        m_publicPoolItem->setHidden(!serviceVisible("public-pool"));
     }
     if (m_sidebar && m_sidebar->currentItem() && m_sidebar->currentItem()->isHidden()) {
         m_sidebar->setCurrentItem(m_dashboardItem);
@@ -419,6 +430,20 @@ QString MainWindow::lightStyle() const
         QPushButton#secondaryButton:disabled {
             background: #f4f6fa;
             border: 1px solid #e1e6ef;
+            color: #a4adbb;
+        }
+        QPushButton#serviceActionButton {
+            background: #fff7ed;
+            border: 1px solid #f7931a;
+            color: #1d1d1f;
+        }
+        QPushButton#serviceActionButton:hover {
+            background: #ffedd5;
+            border: 1px solid #f7931a;
+        }
+        QPushButton#serviceActionButton:disabled {
+            background: #f4f6fa;
+            border: 1px solid #f5c078;
             color: #a4adbb;
         }
         QLineEdit, QSpinBox, QComboBox, QPlainTextEdit {
@@ -628,6 +653,20 @@ QString MainWindow::darkStyle() const
         QPushButton#secondaryButton:disabled {
             background: #1d2330;
             border: 1px solid #2a3241;
+            color: #687386;
+        }
+        QPushButton#serviceActionButton {
+            background: #2a2117;
+            border: 1px solid #f7931a;
+            color: #f5f7fb;
+        }
+        QPushButton#serviceActionButton:hover {
+            background: #3a2a18;
+            border: 1px solid #f7931a;
+        }
+        QPushButton#serviceActionButton:disabled {
+            background: #1d2330;
+            border: 1px solid #8a5a1c;
             color: #687386;
         }
         QLineEdit, QSpinBox, QComboBox, QPlainTextEdit {

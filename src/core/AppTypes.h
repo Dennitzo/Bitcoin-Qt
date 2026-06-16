@@ -22,6 +22,7 @@ enum class BitcoinNetwork {
 
 struct BitcoinNodeStatus {
     int blockHeight = 0;
+    int headerHeight = 0;
     int peers = 0;
     double verificationProgress = 0.0;
     QString network = "unknown";
@@ -47,7 +48,14 @@ struct PublicPoolStats {
     bool online = false;
 };
 
+struct ElectrsSyncStatus {
+    int indexedHeaderHeight = 0;
+    int targetHeaderHeight = 0;
+    bool available = false;
+};
+
 Q_DECLARE_METATYPE(BitcoinNodeStatus)
 Q_DECLARE_METATYPE(ServiceStatus)
 Q_DECLARE_METATYPE(ServiceState)
 Q_DECLARE_METATYPE(PublicPoolStats)
+Q_DECLARE_METATYPE(ElectrsSyncStatus)

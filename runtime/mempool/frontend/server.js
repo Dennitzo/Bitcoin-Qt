@@ -105,11 +105,14 @@ server.on('upgrade', (req, socket, head) => {
     headers: {...req.headers, host: `${backendHost}:${backendPort}`},
   });
   proxy.on('upgrade', (backendRes, backendSocket, backendHead) => {
+    const headers = Object.entries(backendRes.headers)
+      .filter(([key]) => !['connection', 'upgrade'].includes(key.toLowerCase()))
+      .map(([key, value]) => `${key}: ${value}`);
     socket.write([
       'HTTP/1.1 101 Switching Protocols',
       'Upgrade: websocket',
       'Connection: Upgrade',
-      ...Object.entries(backendRes.headers).map(([key, value]) => `${key}: ${value}`),
+      ...headers,
       '',
       '',
     ].join('\r\n'));

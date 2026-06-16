@@ -14,13 +14,18 @@ inline QString appText(const QString& language, const QString& key)
 
     if (key == "dashboard.title") return "Dashboard";
     if (key == "dashboard.blockHeight") return english ? "Block height" : "Blockhöhe";
-    if (key == "dashboard.sync") return "Sync";
+    if (key == "dashboard.sync") return "Sync Bitcoin Core";
+    if (key == "dashboard.electrsSync") return "Sync Electrs";
     if (key == "dashboard.storage") return english ? "Storage" : "Speicher";
     if (key == "dashboard.calculating") return english ? "Calculating" : "Berechne";
     if (key == "dashboard.unavailable") return english ? "Unavailable" : "Nicht verfügbar";
     if (key == "dashboard.peers") return "Peers";
     if (key == "dashboard.network") return english ? "Network" : "Netzwerk";
     if (key == "dashboard.offline") return "Offline";
+    if (key == "dashboard.serviceStartTitle") return english ? "Service start requested" : "Dienststart angefordert";
+    if (key == "dashboard.serviceStartText") return english ? "Bitcoin-Qt is starting %1." : "Bitcoin-Qt startet %1.";
+    if (key == "dashboard.serviceStopTitle") return english ? "Service stop requested" : "Dienststopp angefordert";
+    if (key == "dashboard.serviceStopText") return english ? "Bitcoin-Qt is stopping %1." : "Bitcoin-Qt beendet %1.";
     if (key == "publicPool.minerHashrate") return english ? "Miner hashrate" : "Hashrate Miner";
     if (key == "publicPool.networkHashrate") return english ? "Network hashrate" : "Hashrate Netzwerk";
     if (key == "publicPool.bestShare") return english ? "Best share miner" : "Best Share Miner";
@@ -85,6 +90,8 @@ inline QString appServiceDetail(const QString& language, const QString& detail)
     if (detail == "RPC nicht verfügbar") return "RPC unavailable";
     if (detail == "RPC verfügbar") return "RPC available";
     if (detail == "Warte auf Mempool DB") return "Waiting for Mempool DB";
+    if (detail == "Mempool DB Port belegt, aber Datenbank ist nicht initialisiert") return "Mempool DB port is occupied, but the database is not initialized";
+    if (detail == "Mempool DB konnte nicht zurückgesetzt werden") return "Mempool DB could not be reset";
     if (detail == "Warte auf Electrs") return "Waiting for Electrs";
     if (detail == "Warte auf Mempool Backend") return "Waiting for Mempool backend";
     if (detail == "Warte auf Mempool Frontend") return "Waiting for Mempool frontend";
