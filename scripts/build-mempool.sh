@@ -145,11 +145,8 @@ JS
 
 for package_dir in backend frontend; do
   cd "$BUILD_DIR/mempool/$package_dir"
-  if [[ -f package-lock.json ]]; then
-    "$NPM" ci
-  else
+  rm -f package-lock.json
     "$NPM" install
-  fi
   if [[ "$package_dir" == "frontend" ]]; then
     SKIP_SYNC=1 "$NPM" run build
   else

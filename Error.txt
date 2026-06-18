@@ -1,10 +1,9 @@
+> mempool-backend@3.4-dev build
+> npm run tsc && npm run create-resources
 > mempool-backend@3.4-dev tsc
-> node ./node_modules/typescript/bin/tsc -p tsconfig.build.json
-
-
+> ./node_modules/typescript/bin/tsc -p tsconfig.build.json
 > mempool-backend@3.4-dev create-resources
 > cp ./src/tasks/price-feeds/mtgox-weekly.json ./dist/tasks && node dist/api/fetch-version.js
-
 npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
 npm error code EUSAGE
 npm error
@@ -33,5 +32,5 @@ npm error
 npm error aliases: clean-install, ic, install-clean, isntall-clean
 npm error
 npm error Run "npm help ci" for more info
-npm error A complete log of this run can be found in: C:\npm\cache\_logs\2026-06-18T11_13_14_126Z-debug-0.log
+npm error A complete log of this run can be found in: /home/runner/.npm/_logs/2026-06-18T13_37_43_660Z-debug-0.log
 Error: Process completed with exit code 1.
