@@ -213,3 +213,21 @@ chmod +x "$PREFIX/frontend/server.js"
 test -f "$PREFIX/backend/dist/index.js"
 test -f "$PREFIX/frontend/server.js"
 echo "Mempool staged at $PREFIX"
+# Added fallback for npm ci failure
+if [[ "$package_dir" == "backend" || "$package_dir" == "frontend" ]]; then
+  cd "$BUILD_DIR/mempool/$package_dir"
+  if [[ -f package-lock.json ]]; then
+    # Try ci, fall back to install on error
+    if ! "$NPM" ci; then
+      echo "npm ci failed, falling back to npm install for $package_dir" >&2
+      "$NPM" install
+    fi
+  else
+    "$NPM" install
+  fi
+  if [[ "$package_dir" == "frontend" ]]; then
+    SKIP_SYNC=1 "$NPM" run build
+  else
+    "$NPM" run build
+  fi
+fi
