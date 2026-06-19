@@ -14,7 +14,15 @@ if ([string]::IsNullOrWhiteSpace($ArtifactName)) {
 
 $root = Get-ProjectRoot
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {
-    $BuildDir = Join-Path $root "build\windows-6.11.1-msvc2022_64-$Configuration"
+    $buildRoot = Join-Path $root 'build'
+    $buildCandidate = Get-ChildItem -LiteralPath $buildRoot -Directory -Filter "windows-*-msvc2022_64-$Configuration" -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Bitcoin-Qt.exe') } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if (!$buildCandidate) {
+        throw "No Windows MSVC build directory with Bitcoin-Qt.exe found below $buildRoot. Pass -BuildDir explicitly."
+    }
+    $BuildDir = $buildCandidate.FullName
 }
 if ([string]::IsNullOrWhiteSpace($DistDir)) {
     $DistDir = Join-Path $root 'build\dist'
