@@ -7,6 +7,19 @@
 #include <QFileInfo>
 #include <QDateTime>
 
+namespace {
+
+QString processPath(const QString& path)
+{
+#ifdef Q_OS_WIN
+    return QDir::toNativeSeparators(path);
+#else
+    return path;
+#endif
+}
+
+}
+
 MempoolDatabaseService::MempoolDatabaseService(ConfigManager& config, LogManager& logs, QObject* parent)
     : ManagedService("mempool-db", "Mempool DB", config, logs, parent)
 {
@@ -116,12 +129,20 @@ void MempoolDatabaseService::initializeDatabase()
     QDir().mkpath(m_initializationDir);
     m_initializer.setWorkingDirectory(baseDir());
     m_initializer.setProgram(installer);
+#ifdef Q_OS_WIN
     m_initializer.setArguments({
-        QString("--basedir=%1").arg(baseDir()),
-        QString("--datadir=%1").arg(m_initializationDir),
+        QString("--datadir=%1").arg(processPath(m_initializationDir)),
+        QString("--port=%1").arg(config().mempoolDatabasePort()),
+        "--default-user",
+    });
+#else
+    m_initializer.setArguments({
+        QString("--basedir=%1").arg(processPath(baseDir())),
+        QString("--datadir=%1").arg(processPath(m_initializationDir)),
         "--auth-root-authentication-method=normal",
         "--skip-test-db",
     });
+#endif
     m_initializer.start();
 }
 
@@ -141,19 +162,25 @@ void MempoolDatabaseService::startDatabase()
         return;
     }
 
-    startProcess(program, {
-        QString("--basedir=%1").arg(baseDir()),
-        QString("--datadir=%1").arg(config().mempoolDatabaseDir()),
+    QStringList arguments{
+        QString("--basedir=%1").arg(processPath(baseDir())),
+        QString("--datadir=%1").arg(processPath(config().mempoolDatabaseDir())),
         QString("--port=%1").arg(config().mempoolDatabasePort()),
-        QString("--socket=%1").arg(socketPath()),
-        QString("--pid-file=%1").arg(pidPath()),
-        QString("--init-file=%1").arg(initSqlPath()),
+        QString("--pid-file=%1").arg(processPath(pidPath())),
+        QString("--init-file=%1").arg(processPath(initSqlPath())),
         "--bind-address=127.0.0.1",
         "--skip-networking=0",
         "--character-set-server=utf8mb4",
         "--collation-server=utf8mb4_unicode_ci",
         "--max-connections=100",
-    }, config().mempoolDatabaseDir());
+    };
+#ifdef Q_OS_WIN
+    arguments << "--console";
+#else
+    arguments << QString("--socket=%1").arg(processPath(socketPath()));
+#endif
+
+    startProcess(program, arguments, config().mempoolDatabaseDir());
     m_healthTimer.start();
 }
 

@@ -10,18 +10,19 @@ Expected layout:
 runtime/
   bitcoin/
     bin/
-      bitcoind
+      bitcoind[.exe]
+      bitcoin-cli[.exe]
   electrs/
     bin/
-      electrs
+      electrs[.exe]
   node/
     bin/
-      node
-      npm
+      node[.exe]
+      npm[.cmd]
   mariadb/
     bin/
-      mariadbd
-      mariadb-install-db
+      mariadbd[.exe]
+      mariadb-install-db[.exe]
     scripts/
       mariadb-install-db
   mempool/
@@ -50,6 +51,18 @@ Build or stage the runtime with:
 ```bash
 ./scripts/build-runtime.sh
 ```
+
+On native Windows without WSL or Git Bash, stage available Windows x64 binaries
+into `windows/runtime/` with:
+
+```powershell
+.\windows\stage-runtime.ps1
+```
+
+The Windows staging script uses portable archives where upstream publishes them:
+Bitcoin Core, Node.js, and MariaDB. Build electrs natively with
+`.\windows\stage-electrs.ps1` after installing Git for Windows, Rust, LLVM, and
+Visual Studio C++ tools.
 
 The runtime directories are generated artifacts and are ignored by git. Rebuild
 or restage them locally instead of committing binaries, package-manager output,

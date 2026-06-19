@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build/runtime-src"
 PREFIX="$ROOT_DIR/runtime/bitcoin"
-REF="${BITCOIN_CORE_REF:-v24.2}"
+REF="${BITCOIN_CORE_REF:-v31.0}"
 JOBS="${JOBS:-$(sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
 HOST="${BITCOIN_CORE_HOST:-$(clang -dumpmachine)}"
 

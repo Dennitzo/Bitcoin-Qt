@@ -38,9 +38,9 @@ jobs:
             artifact: bitcoin-qt-linux-x64
           - label: Windows x64
             runner: windows-2022
-            qt-version: "6.7.3"
+            qt-version: "6.11.1"
             qt-host: windows
-            qt-arch: win64_msvc2019_64
+            qt-arch: win64_msvc2022_64
             msvc-arch: x64
             build-runtime: true
             artifact: bitcoin-qt-windows-x64
@@ -50,7 +50,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install system dependencies
+        if: runner.os != 'Windows'
         run: ./scripts/ci-install-deps.sh
+
+      - name: Install Windows system dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install llvm -y --no-progress
+          rustup default stable-x86_64-pc-windows-msvc
+          rustup target add x86_64-pc-windows-msvc
 
       - name: Set up MSVC
         if: runner.os == 'Windows'
@@ -59,6 +68,7 @@ jobs:
           arch: ${{ matrix.msvc-arch }}
 
       - name: Install Qt
+        if: runner.os != 'Windows'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ matrix.qt-version }}
@@ -68,17 +78,48 @@ jobs:
           modules: qtwebengine qtwebchannel qtpositioning
           cache: true
 
+      - name: Install Qt for Windows
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          dir: C:\Qt
+          version: ${{ matrix.qt-version }}
+          host: ${{ matrix.qt-host }}
+          target: desktop
+          arch: ${{ matrix.qt-arch }}
+          modules: qtwebengine qtwebchannel qtpositioning
+          cache: true
+
       - name: Build runtime
-        if: matrix.build-runtime == true
+        if: matrix.build-runtime == true && runner.os != 'Windows'
         run: ./scripts/build-runtime.sh
 
+      - name: Build Windows runtime
+        if: matrix.build-runtime == true && runner.os == 'Windows'
+        shell: pwsh
+        run: .\windows\stage-runtime.ps1 -BuildElectrs
+
       - name: Build
+        if: runner.os != 'Windows'
         run: ./scripts/build-app.sh
 
+      - name: Build Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\windows\build-app.ps1 -Configuration $env:BUILD_TYPE -QtRoot C:\Qt
+
       - name: Package
+        if: runner.os != 'Windows'
         env:
           ARTIFACT_NAME: ${{ matrix.artifact }}
         run: ./scripts/package-artifact.sh
+
+      - name: Package Windows artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+        run: .\windows\package-artifact.ps1 -Configuration $env:BUILD_TYPE
 
       - name: Upload archive
         uses: actions/upload-artifact@v4

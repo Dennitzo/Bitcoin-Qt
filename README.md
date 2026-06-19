@@ -46,11 +46,62 @@ Install Qt 6 with the required desktop modules:
   `qt6-base-dev`, `qt6-webengine-dev`, and `qt6-webchannel-dev`.
 - **Windows:** install Qt with the Qt Online Installer. Select the MSVC or
   MinGW desktop kit matching your compiler and include Qt WebEngine and
-  Qt WebChannel.
+  Qt WebChannel. For this project, Qt WebEngine must be installed in the same
+  x64 kit as Qt Widgets/Network/WebChannel.
 
 After installing Qt, point CMake at the kit with `CMAKE_PREFIX_PATH`, for
 example `$HOME/Qt/6.8.3/macos` on macOS or `C:\Qt\6.8.3\msvc2022_64` on
 Windows.
+
+### Native Windows Workflow
+
+Native Windows helper scripts live in `windows/` and run with PowerShell. They
+do not require WSL, Git Bash, or MSYS. Defaults are `C:\Qt` for Qt and
+`C:\Program Files\CMake\bin\cmake.exe` for CMake.
+
+Check the detected Qt/CMake setup:
+
+```powershell
+.\windows\check-environment.ps1
+```
+
+Stage available Windows x64 runtime binaries into `windows\runtime`:
+
+```powershell
+.\windows\stage-runtime.ps1
+```
+
+This downloads official portable Windows x64 archives for Bitcoin Core, Node.js,
+and MariaDB into `windows/runtime/`. Bitcoin Core defaults to the latest version
+reported by `https://bitcoincore.org/en/download/` and verifies the archive
+against `SHA256SUMS`. Override versions with `BITCOIN_CORE_VERSION`,
+`NODE_VERSION`, and `MARIADB_VERSION`.
+
+Build the app natively:
+
+```powershell
+.\windows\build-app.ps1 -Configuration Release
+```
+
+Or stage runtimes first and then build:
+
+```powershell
+.\windows\build-app.ps1 -StageRuntime -Configuration Release
+```
+
+If multiple Qt kits are installed, pass the kit explicitly:
+
+```powershell
+.\windows\build-app.ps1 -QtKitPath C:\Qt\6.11.1\msvc2022_64 -Configuration Release
+```
+
+`electrs` does not publish a matching official Windows x64 binary in this
+runtime layout. To build it without Bash, install Git for Windows, Rust, LLVM,
+and Visual Studio C++ tools, then run:
+
+```powershell
+.\windows\stage-electrs.ps1
+```
 
 The normal source workflow is:
 
@@ -134,13 +185,14 @@ packaged.
 Expected runtime layout:
 
 ```text
-runtime/
-  bitcoin/bin/bitcoind
-  electrs/bin/electrs
-  mariadb/bin/mariadbd
-  mariadb/bin/mariadb-install-db
-  node/bin/node
-  node/bin/npm
+  runtime/
+  bitcoin/bin/bitcoind[.exe]
+  bitcoin/bin/bitcoin-cli[.exe]
+  electrs/bin/electrs[.exe]
+  mariadb/bin/mariadbd[.exe]
+  mariadb/bin/mariadb-install-db[.exe]
+  node/bin/node[.exe]
+  node/bin/npm[.cmd]
   mempool/backend/
   mempool/frontend/
   public-pool/backend/

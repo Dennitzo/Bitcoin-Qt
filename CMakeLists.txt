@@ -68,6 +68,10 @@ qt_add_executable(BitcoinNodeDesktop
     src/web/WebBridge.h
 )
 
+if(WIN32)
+    target_sources(BitcoinNodeDesktop PRIVATE resources/windows.rc)
+endif()
+
 target_link_libraries(BitcoinNodeDesktop PRIVATE
     Qt6::Concurrent
     Qt6::Network
@@ -82,8 +86,47 @@ target_compile_definitions(BitcoinNodeDesktop PRIVATE
 )
 
 set_target_properties(BitcoinNodeDesktop PROPERTIES
+    OUTPUT_NAME "Bitcoin-Qt"
+)
+
+set_target_properties(BitcoinNodeDesktop PROPERTIES
     QT_QML_MODULE_NO_IMPORT_SCAN TRUE
 )
+
+set(BITCOIN_QT_RUNTIME_SOURCE_DIR "${CMAKE_SOURCE_DIR}/runtime" CACHE PATH "Runtime directory copied beside the app")
+if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/windows/runtime")
+    set(BITCOIN_QT_RUNTIME_SOURCE_DIR "${CMAKE_SOURCE_DIR}/windows/runtime")
+endif()
+
+if(WIN32)
+    set_target_properties(BitcoinNodeDesktop PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+
+    find_program(WINDEPLOYQT_EXECUTABLE
+        NAMES windeployqt windeployqt6
+        HINTS "${Qt6_DIR}/../../../bin"
+        PATH_SUFFIXES bin
+    )
+
+    add_custom_command(TARGET BitcoinNodeDesktop POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${BITCOIN_QT_RUNTIME_SOURCE_DIR}"
+            "$<TARGET_FILE_DIR:BitcoinNodeDesktop>/runtime"
+        COMMENT "Copying owned service runtime beside Windows executable"
+    )
+
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET BitcoinNodeDesktop POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                --no-translations
+                "$<TARGET_FILE:BitcoinNodeDesktop>"
+            COMMENT "Deploying Qt runtime with windeployqt"
+        )
+    else()
+        message(WARNING "windeployqt was not found. The Windows executable will need Qt DLLs deployed manually.")
+    endif()
+endif()
 
 if(APPLE)
     set_source_files_properties(resources/AppLogo.icns PROPERTIES
@@ -100,7 +143,7 @@ if(APPLE)
 
     add_custom_command(TARGET BitcoinNodeDesktop POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources"
-        COMMAND /usr/bin/rsync -a --delete "${CMAKE_SOURCE_DIR}/runtime/" "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources/runtime/"
+        COMMAND /usr/bin/rsync -a --delete "${BITCOIN_QT_RUNTIME_SOURCE_DIR}/" "$<TARGET_BUNDLE_CONTENT_DIR:BitcoinNodeDesktop>/Resources/runtime/"
         COMMENT "Copying owned service runtime into app bundle"
     )
 endif()

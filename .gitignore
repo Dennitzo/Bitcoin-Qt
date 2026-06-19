@@ -25,6 +25,7 @@ compile_commands.json
 runtime/*
 !runtime/
 !runtime/README.md
+windows/runtime/
 
 # Local node/frontend artifacts
 node_modules/

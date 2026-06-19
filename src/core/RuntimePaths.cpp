@@ -41,6 +41,16 @@ QStringList RuntimePaths::searchRoots()
     roots << appDir.filePath("../Resources/runtime");
 #endif
 
+#ifdef Q_OS_WIN
+    roots << appDir.filePath("windows/runtime");
+    roots << appDir.filePath("../windows/runtime");
+    roots << appDir.filePath("../../windows/runtime");
+    roots << appDir.filePath("../../../windows/runtime");
+    roots << appDir.filePath("../../../../windows/runtime");
+    roots << appDir.filePath("../../../../../windows/runtime");
+    roots << QDir::current().filePath("windows/runtime");
+#endif
+
     roots << appDir.filePath("runtime");
     roots << appDir.filePath("../runtime");
     roots << appDir.filePath("../../runtime");
