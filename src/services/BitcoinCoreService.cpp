@@ -95,6 +95,7 @@ QStringList BitcoinCoreService::arguments() const
     QStringList args{
         QString("-datadir=%1").arg(config().bitcoinDataDir()),
         "-server=1",
+        "-rest=1",
         "-txindex=1",
         "-rpcbind=127.0.0.1",
         "-rpcallowip=127.0.0.1",
