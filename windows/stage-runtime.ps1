@@ -2,6 +2,7 @@ param(
     [switch]$BuildElectrs,
     [string]$RuntimeRoot = $env:BITCOIN_QT_RUNTIME_ROOT,
     [switch]$SkipMariaDB,
+    [switch]$SkipMempool,
     [switch]$SkipPublicPool,
     [switch]$SkipBitcoinChecksum,
     [switch]$ForceDownload
@@ -18,6 +19,10 @@ $resolvedRuntimeRoot = Resolve-RuntimeRoot -RuntimeRoot $RuntimeRoot
 
 if (!$SkipMariaDB) {
     & (Join-Path $PSScriptRoot 'stage-mariadb-runtime.ps1') -RuntimeRoot $resolvedRuntimeRoot -ForceDownload:$ForceDownload
+}
+
+if (!$SkipMempool) {
+    & (Join-Path $PSScriptRoot 'stage-mempool.ps1') -RuntimeRoot $resolvedRuntimeRoot
 }
 
 if ($BuildElectrs) {
@@ -40,6 +45,9 @@ foreach ($relativePath in @(
     'node\bin\npm.cmd',
     'mariadb\bin\mariadbd.exe',
     'mariadb\bin\mariadb-install-db.exe',
+    'mempool\backend\server.js',
+    'mempool\backend\dist\index.js',
+    'mempool\frontend\server.js',
     'public-pool\backend\dist\main.js',
     'public-pool\frontend\server.js'
 )) {

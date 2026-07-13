@@ -33,8 +33,22 @@ This downloads and stages:
 - `windows\runtime\node\bin\npm.cmd`
 - `windows\runtime\mariadb\bin\mariadbd.exe`
 - `windows\runtime\mariadb\bin\mariadb-install-db.exe`
+- `windows\runtime\mempool\backend\server.js`
+- `windows\runtime\mempool\frontend\server.js`
 - `windows\runtime\public-pool\backend\dist\main.js`
 - `windows\runtime\public-pool\frontend\server.js`
+
+The Mempool build requires Git for Windows, Rust with the
+`x86_64-pc-windows-msvc` toolchain, and Visual Studio C++ build tools. To build
+only this runtime component, run:
+
+```powershell
+.\windows\stage-node-runtime.ps1
+.\windows\stage-mempool.ps1
+```
+
+Set `MEMPOOL_REF` or pass `-Ref` to build a branch, tag, or commit other than
+`master`. Pass `-ForceUpdate` to fetch updated refs in an existing checkout.
 
 To refresh the Public Pool Git checkouts before building, run:
 
