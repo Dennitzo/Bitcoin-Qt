@@ -59,6 +59,8 @@ inline QString appText(const QString& language, const QString& key)
     if (key == "logs.bitcoind") return english ? "Bitcoin Core Log" : "Bitcoin Core Log";
     if (key == "logs.electrs") return english ? "Electrs Log" : "Electrs Log";
     if (key == "web.mempoolWaiting") return english ? "Mempool will load once backend and frontend are ready." : "Mempool wird geladen, sobald Backend und Frontend bereit sind.";
+    if (key == "web.mempoolHome") return english ? "Go to Mempool home" : "Zur Mempool-Startseite";
+    if (key == "web.publicPoolHome") return english ? "Go to Public Pool home" : "Zur Public-Pool-Startseite";
     if (key == "web.publicPoolWaiting") return english ? "Public Pool will load once Stratum/API and UI are ready." : "Public Pool wird geladen, sobald Stratum/API und UI bereit sind.";
 
     if (key == "firstRun.windowTitle") return english ? "Set up storage location" : "Speicherort einrichten";
@@ -106,7 +108,7 @@ inline QString appServiceDetail(const QString& language, const QString& detail)
     if (detail == "Warte auf Bitcoin Core Sync") return "Waiting for Bitcoin Core sync";
     if (detail == "Indexiert Blockchain") return "Indexing blockchain";
     if (detail == "Bereit") return "Ready";
-    if (detail == "Electrum bereit") return "Electrum ready";
+    if (detail == "Electrum erreichbar") return "Electrum reachable";
     if (detail == "Frontend erreichbar") return "Frontend reachable";
     if (detail == "Datenbank erreichbar") return "Database reachable";
     if (detail == "Backend startet") return "Backend starting";

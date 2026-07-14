@@ -1,5 +1,7 @@
 #include "BitcoinCoreService.h"
 
+#include "../core/RuntimePaths.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -7,7 +9,7 @@
 #include <QProcess>
 
 BitcoinCoreService::BitcoinCoreService(ConfigManager& config, LogManager& logs, QObject* parent)
-    : ManagedService("bitcoind", "Bitcoin Core", config, logs, parent),
+    : ManagedService("bitcoind", RuntimePaths::versionedLabel("Bitcoin Core", "bitcoin"), config, logs, parent),
       m_rpc(config, this)
 {
     QObject::connect(&m_pollTimer, &QTimer::timeout, this, &BitcoinCoreService::pollRpc);

@@ -1,5 +1,7 @@
 #include "ElectrsService.h"
 
+#include "../core/RuntimePaths.h"
+
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
@@ -30,7 +32,7 @@ int indexedHeaderHeight(const QByteArray& response)
 }
 
 ElectrsService::ElectrsService(ConfigManager& config, LogManager& logs, QObject* parent)
-    : ManagedService("electrs", "Electrs", config, logs, parent),
+    : ManagedService("electrs", RuntimePaths::versionedLabel("Electrs", "electrs"), config, logs, parent),
       m_rpc(config, this)
 {
     m_healthTimer.setInterval(3000);
@@ -174,7 +176,7 @@ void ElectrsService::checkPort()
             return;
         }
         if (state() != ServiceState::Synced) {
-            setState(ServiceState::Synced, "Electrum bereit");
+            setState(ServiceState::Synced, "Electrum erreichbar");
             Q_EMIT ready(id());
         }
     });
@@ -219,7 +221,7 @@ void ElectrsService::handleStdout(const QString& line)
         setState(ServiceState::Indexing, "Indexiert Blockchain");
     }
     if (line.contains("serving", Qt::CaseInsensitive) || line.contains("listening", Qt::CaseInsensitive)) {
-        setState(ServiceState::Synced, "Bereit");
+        setState(ServiceState::Synced, "Electrum erreichbar");
         Q_EMIT ready(id());
     }
 }

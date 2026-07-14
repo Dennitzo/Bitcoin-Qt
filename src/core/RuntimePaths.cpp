@@ -2,7 +2,10 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QStandardPaths>
 
 QString RuntimePaths::runtimeRoot()
@@ -24,6 +27,33 @@ QString RuntimePaths::executable(const QString& relativePath)
         }
     }
     return normalizeExecutable(QDir(runtimeRoot()).filePath(relativePath));
+}
+
+QString RuntimePaths::componentVersion(const QString& component)
+{
+    const QDir componentDir(QDir(runtimeRoot()).filePath(component));
+    QFile versionFile(componentDir.filePath("VERSION"));
+    if (versionFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString version = QString::fromUtf8(versionFile.readAll()).trimmed();
+        if (!version.isEmpty() && version.compare("master", Qt::CaseInsensitive) != 0) {
+            return version.startsWith('v') ? version.mid(1) : version;
+        }
+    }
+
+    QFile packageFile(componentDir.filePath("backend/package.json"));
+    if (packageFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString version = QJsonDocument::fromJson(packageFile.readAll()).object().value("version").toString().trimmed();
+        if (!version.isEmpty()) {
+            return version.startsWith('v') ? version.mid(1) : version;
+        }
+    }
+    return {};
+}
+
+QString RuntimePaths::versionedLabel(const QString& label, const QString& component)
+{
+    const QString version = componentVersion(component);
+    return version.isEmpty() ? label : QString("%1 %2").arg(label, version);
 }
 
 bool RuntimePaths::isExecutableAvailable(const QString& absolutePath)

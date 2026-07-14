@@ -13,7 +13,7 @@
 #include <QProcessEnvironment>
 
 MempoolService::MempoolService(ConfigManager& config, LogManager& logs, QObject* parent)
-    : ManagedService("mempool", "Mempool", config, logs, parent)
+    : ManagedService("mempool", RuntimePaths::versionedLabel("Mempool", "mempool"), config, logs, parent)
 {
     attachProcess(m_backend, "mempool-backend");
     attachProcess(m_frontend, "mempool-frontend");
@@ -295,7 +295,9 @@ bool MempoolService::writeBackendConfig() const
         {"BACKEND", "electrum"},
         {"HTTP_PORT", static_cast<int>(config().mempoolBackendPort())},
         {"CACHE_DIR", QDir(config().mempoolDataDir()).filePath("cache")},
+        {"BLOCKS_SUMMARIES_INDEXING", true},
         {"CLEAR_PROTECTION_MINUTES", 20},
+        {"GOGGLES_INDEXING", true},
         {"INDEXING_BLOCKS_AMOUNT", 52560},
         {"POLL_RATE_MS", 2000},
         {"STDOUT_LOG_MIN_PRIORITY", "info"},
@@ -344,7 +346,7 @@ bool MempoolService::writeBackendConfig() const
         {"TX_PER_SECOND_SAMPLE_PERIOD", 150},
     });
     root.insert("LIGHTNING", QJsonObject{{"ENABLED", false}});
-    root.insert("FIAT_PRICE", QJsonObject{{"ENABLED", false}});
+    root.insert("FIAT_PRICE", QJsonObject{{"ENABLED", true}});
     root.insert("MAXMIND", QJsonObject{{"ENABLED", false}});
     root.insert("SOCKS5PROXY", QJsonObject{{"ENABLED", false}});
     root.insert("REDIS", QJsonObject{{"ENABLED", false}});

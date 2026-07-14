@@ -314,8 +314,11 @@ void DashboardPage::updateServiceStatus(const ServiceStatus& status)
     if (!target) {
         return;
     }
+    const QString displayedState = status.id == "electrs" && status.state == ServiceState::Synced
+        ? text("state.online")
+        : stateText(status.state);
     target->setText(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700'>%1</span><br><b style='font-size:24px'>%2</b><br><span style='color:#8a93a3'>%3</span>")
-        .arg(status.label, stateText(status.state), appServiceDetail(language(), status.detail)));
+        .arg(status.label, displayedState, appServiceDetail(language(), status.detail)));
     if (auto* start = m_startButtons.value(status.id, nullptr)) {
         start->setEnabled(status.state == ServiceState::Stopped || status.state == ServiceState::Error);
     }

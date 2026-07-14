@@ -51,6 +51,16 @@ $exe = Get-ChildItem -LiteralPath $buildDir -Recurse -Filter 'Bitcoin-Qt.exe' -E
     Sort-Object FullName |
     Select-Object -First 1
 if ($exe) {
+    $runtimeSource = Join-Path $root 'windows\runtime'
+    if (!(Test-Path -LiteralPath $runtimeSource)) {
+        $runtimeSource = Join-Path $root 'runtime'
+    }
+    if (!(Test-Path -LiteralPath $runtimeSource)) {
+        throw "Runtime source directory not found below $root"
+    }
+    $runtimeDestination = Join-Path $exe.DirectoryName 'runtime'
+    Write-Step "Synchronizing runtime to $runtimeDestination"
+    Invoke-Tool $cmake '-E' 'copy_directory' $runtimeSource $runtimeDestination
     Write-Host "Windows executable: $($exe.FullName)"
 } else {
     Write-Warning "Build completed but Bitcoin-Qt.exe was not found below $buildDir"

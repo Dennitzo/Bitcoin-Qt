@@ -61,5 +61,8 @@ try {
 Remove-SafeDirectory $prefix
 New-Item -ItemType Directory -Force -Path (Join-Path $prefix 'bin') | Out-Null
 Copy-Item -LiteralPath (Join-Path $sourceDir 'target\release\electrs.exe') -Destination (Join-Path $prefix 'bin\electrs.exe') -Force
-Set-Content -LiteralPath (Join-Path $prefix 'VERSION') -Value $Ref -Encoding ASCII
+$cargoManifest = Get-Content -LiteralPath (Join-Path $sourceDir 'Cargo.toml') -Raw
+$versionMatch = [regex]::Match($cargoManifest, '(?ms)^\[package\].*?^version\s*=\s*"([^"]+)"')
+$version = if ($versionMatch.Success) { $versionMatch.Groups[1].Value } else { $Ref }
+Set-Content -LiteralPath (Join-Path $prefix 'VERSION') -Value $version -Encoding ASCII
 Invoke-Tool (Join-Path $prefix 'bin\electrs.exe') '--version'

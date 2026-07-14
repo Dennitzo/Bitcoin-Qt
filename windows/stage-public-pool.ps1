@@ -47,6 +47,50 @@ function Sync-GitRepository {
 Sync-GitRepository -Url 'https://github.com/benjamin-wilson/public-pool.git' -Path $backendSrc
 Sync-GitRepository -Url 'https://github.com/benjamin-wilson/public-pool-ui.git' -Path $frontendSrc
 
+function Invoke-SharedPublicPoolPatches {
+    $unixBuildScript = Join-Path $root 'scripts\build-public-pool.sh'
+    $lines = Get-Content -LiteralPath $unixBuildScript
+    $patchCount = 0
+
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -notmatch '^(BACKEND_SRC|FRONTEND_SRC)=.*<<''JS''$') {
+            continue
+        }
+
+        $variable = $Matches[1]
+        $scriptLines = New-Object System.Collections.Generic.List[string]
+        for ($index++; $index -lt $lines.Count -and $lines[$index] -ne 'JS'; $index++) {
+            $scriptLines.Add($lines[$index])
+        }
+        if ($index -ge $lines.Count) {
+            throw "Unterminated JavaScript patch block in $unixBuildScript"
+        }
+
+        $patchCount++
+        $scriptPath = Join-Path $buildDir "public-pool-patch-$patchCount.js"
+        Set-Content -LiteralPath $scriptPath -Value ($scriptLines -join "`n") -Encoding UTF8
+        $previousValue = [Environment]::GetEnvironmentVariable($variable, 'Process')
+        [Environment]::SetEnvironmentVariable(
+            $variable,
+            $(if ($variable -eq 'BACKEND_SRC') { $backendSrc } else { $frontendSrc }),
+            'Process'
+        )
+        try {
+            Invoke-Tool $node $scriptPath
+        } finally {
+            [Environment]::SetEnvironmentVariable($variable, $previousValue, 'Process')
+            Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if ($patchCount -ne 3) {
+        throw "Expected 3 shared Public Pool patch blocks, found $patchCount in $unixBuildScript"
+    }
+}
+
+Write-Step "Applying shared Public Pool backend and frontend patches"
+Invoke-SharedPublicPoolPatches
+
 Write-Step "Building Public Pool backend"
 Push-Location $backendSrc
 try {

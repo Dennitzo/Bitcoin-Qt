@@ -72,7 +72,7 @@ QDateTime parseIsoDate(const QString& value)
 }
 
 PublicPoolService::PublicPoolService(ConfigManager& config, LogManager& logs, QObject* parent)
-    : ManagedService("public-pool", "Public Pool", config, logs, parent)
+    : ManagedService("public-pool", RuntimePaths::versionedLabel("Public Pool", "public-pool"), config, logs, parent)
 {
     attachProcess(m_backend, "public-pool");
     attachProcess(m_frontend, "public-pool-ui");

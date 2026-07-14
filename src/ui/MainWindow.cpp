@@ -8,6 +8,7 @@
 #include <QDebug>
 #include <QLabel>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPalette>
 #include <QPixmap>
@@ -18,6 +19,7 @@
 #include <QWebEnginePage>
 #include <QWebEngineScript>
 #include <QWebEngineScriptCollection>
+#include <QWebEngineSettings>
 
 namespace {
 
@@ -109,7 +111,11 @@ void MainWindow::buildUi()
     auto* brandIcon = new QLabel(brand);
     brandIcon->setObjectName("brandIcon");
     brandIcon->setFixedSize(34, 34);
-    brandIcon->setPixmap(QPixmap(":/icons/Bitcoin.png").scaled(34, 34, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    const qreal iconDpr = devicePixelRatioF();
+    const int iconPixels = qRound(34 * iconDpr);
+    QPixmap brandPixmap = QPixmap(":/icons/Bitcoin.png").scaled(iconPixels, iconPixels, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    brandPixmap.setDevicePixelRatio(iconDpr);
+    brandIcon->setPixmap(brandPixmap);
     auto* brandText = new QLabel("Bitcoin-Qt", brand);
     brandText->setObjectName("brandText");
     brandLayout->addWidget(brandIcon);
@@ -212,6 +218,24 @@ void MainWindow::configureWebEngine()
 
     configureWebPage(m_mempoolPage->webView());
     configureWebPage(m_publicPoolPage->webView());
+
+    const auto addHomeContextMenu = [this](QWebEngineView* view, const QString& textKey, const QUrl& homeUrl) {
+        view->setContextMenuPolicy(Qt::CustomContextMenu);
+        QObject::connect(view, &QWidget::customContextMenuRequested, this, [this, view, textKey, homeUrl](const QPoint& position) {
+            QMenu* menu = view->createStandardContextMenu();
+            QAction* homeAction = new QAction(appText(m_config.language(), textKey), menu);
+            QObject::connect(homeAction, &QAction::triggered, view, [view, homeUrl]() {
+                view->load(homeUrl);
+            });
+            const QList<QAction*> actions = menu->actions();
+            menu->insertAction(actions.isEmpty() ? nullptr : actions.constFirst(), homeAction);
+            menu->insertSeparator(actions.isEmpty() ? nullptr : actions.constFirst());
+            menu->exec(view->mapToGlobal(position));
+            menu->deleteLater();
+        });
+    };
+    addHomeContextMenu(m_mempoolPage->webView(), "web.mempoolHome", m_services.mempoolUrl());
+    addHomeContextMenu(m_publicPoolPage->webView(), "web.publicPoolHome", m_services.publicPoolUrl());
 }
 
 void MainWindow::shutdownWebEngine()
@@ -748,6 +772,8 @@ QString MainWindow::darkStyle() const
 void MainWindow::configureWebPage(QWebEngineView* view)
 {
     auto* page = new EmbeddedWebPage(m_profile, view);
+    page->settings()->setAttribute(QWebEngineSettings::WebGLEnabled, true);
+    page->settings()->setAttribute(QWebEngineSettings::Accelerated2dCanvasEnabled, true);
     auto* channel = new QWebChannel(page);
     auto* bridge = new WebBridge(m_services, channel);
     channel->registerObject("qt", bridge);

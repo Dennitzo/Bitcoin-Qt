@@ -60,20 +60,18 @@ if (addressSettingsSource.includes('public async getAddresses()') && !addressSet
     }`);
 }
 if (!addressSettingsSource.includes('public async getAddresses()')) {
-  addressSettingsSource = addressSettingsSource.replace(
-`    public async createNew(address: string) {
-        return await this.addressSettingsRepository.save({ address });
-    }`,
-`    public async getAddresses() {
+  addressSettingsSource = replaceOrThrow(
+    addressSettingsSource,
+    /(\r?\n\s+)public async createNew\(address: string\)/,
+`$1public async getAddresses() {
         return await this.addressSettingsRepository.createQueryBuilder()
             .select('"address", "updatedAt", "shares", "rejectedShares", "bestDifficulty", "bestDifficultyUserAgent"')
             .orderBy('"updatedAt"', 'DESC')
             .execute();
     }
 
-    public async createNew(address: string) {
-        return await this.addressSettingsRepository.save({ address });
-    }`);
+    public async createNew(address: string)`,
+    'insert AddressSettingsService.getAddresses');
 }
 if (!addressSettingsSource.includes('public async addRejectedShare(address: string)')) {
   addressSettingsSource = replaceOrThrow(
@@ -120,12 +118,24 @@ if (!addressSettingsEntitySource.includes('rejectedShares: number')) {
 const clientController = path.join(backend, 'src/controllers/client/client.controller.ts');
 let clientControllerSource = fs.readFileSync(clientController, 'utf8');
 if (!clientControllerSource.includes('rejectedShares: addressSettings?.rejectedShares')) {
-  clientControllerSource = clientControllerSource.replace(
-`                ...accounting,
-                bestSubmissionDifficulty: addressSettings?.bestDifficulty ?? accounting?.bestSubmissionDifficulty ?? 0`,
-`                ...accounting,
+  if (!clientControllerSource.includes('const accounting = await this.clientStatisticsService.getAccountingForAddress(address);')) {
+    clientControllerSource = replaceOrThrow(
+      clientControllerSource,
+      /(\s+const addressSettings = await this\.addressSettingsService\.getSettings\(address, false\);)/,
+      `$1
+        const accounting = await this.clientStatisticsService.getAccountingForAddress(address);`,
+      'load address accounting in ClientController');
+  }
+  clientControllerSource = replaceOrThrow(
+    clientControllerSource,
+    /(\s+return \{\r?\n)(\s+bestDifficulty:)/,
+    `$1            accounting: {
+                ...accounting,
                 rejectedShares: addressSettings?.rejectedShares ?? 0,
-                bestSubmissionDifficulty: addressSettings?.bestDifficulty ?? accounting?.bestSubmissionDifficulty ?? 0`);
+                bestSubmissionDifficulty: addressSettings?.bestDifficulty ?? accounting?.bestSubmissionDifficulty ?? 0
+            },
+$2`,
+    'return address accounting from ClientController');
   fs.writeFileSync(clientController, clientControllerSource);
 }
 
@@ -427,9 +437,21 @@ if (stratumClientSource.includes('private async recordRejectedShare()') && !stra
 
 const appController = path.join(backend, 'src/app.controller.ts');
 let appControllerSource = fs.readFileSync(appController, 'utf8');
+if (!appControllerSource.includes("@Get('info/accounting')")) {
+  appControllerSource = appControllerSource.replace(
+/\r?\n}\r?\n?$/,
+`
+  @Get('info/accounting')
+  public async infoAccounting() {
+    return await this.clientStatisticsService.getAccountingForSite();
+  }
+
+}
+`);
+}
 if (!appControllerSource.includes("@Get('info/addresses')")) {
   appControllerSource = appControllerSource.replace(
-`\n}\n`,
+/\r?\n}\r?\n?$/,
 `
   @Get('info/addresses')
   public async infoAddresses() {
@@ -438,8 +460,8 @@ if (!appControllerSource.includes("@Get('info/addresses')")) {
 
 }
 `);
-  fs.writeFileSync(appController, appControllerSource);
 }
+fs.writeFileSync(appController, appControllerSource);
 
 const requiredBackendPatches = [
   [addressSettingsService, 'public async addRejectedShare(address: string)'],
@@ -449,6 +471,8 @@ const requiredBackendPatches = [
   [clientStatistics, 'private rejectedCount: number = 0;'],
   [clientStatistics, 'public async addRejectedShare(client: ClientEntity)'],
   [stratumClient, 'await this.statistics.addRejectedShare(this.entity);'],
+  [clientController, 'rejectedShares: addressSettings?.rejectedShares'],
+  [appController, "@Get('info/accounting')"],
   [appController, "@Get('info/addresses')"],
 ];
 for (const [file, needle] of requiredBackendPatches) {
@@ -468,13 +492,8 @@ const appService = path.join(frontend, 'src/app/services/app.service.ts');
 let appServiceSource = fs.readFileSync(appService, 'utf8');
 if (!appServiceSource.includes('getAddresses()')) {
   appServiceSource = appServiceSource.replace(
-`    public getAccounting() {
-        return this.httpClient.get(\`\${this.appConfig.apiUrl}/api/info/accounting\`) as Observable<any>;
-    }
-}`,
-`    public getAccounting() {
-        return this.httpClient.get(\`\${this.appConfig.apiUrl}/api/info/accounting\`) as Observable<any>;
-    }
+/\r?\n}\r?\n?$/,
+`
     public getAddresses() {
         return this.httpClient.get(\`\${this.appConfig.apiUrl}/api/info/addresses\`) as Observable<any[]>;
     }
@@ -486,12 +505,9 @@ const splashComponent = path.join(frontend, 'src/app/components/splash/splash.co
 let splashComponentSource = fs.readFileSync(splashComponent, 'utf8');
 if (!splashComponentSource.includes('public addresses$: Observable<any[]>;')) {
   splashComponentSource = splashComponentSource
-    .replace('  public networkInfo$: Observable<any>;\n', '  public networkInfo$: Observable<any>;\n  public addresses$: Observable<any[]>;\n')
+    .replace(/(  public networkInfo\$: Observable<any>;\r?\n)/, '$1  public addresses$: Observable<any[]>;\n')
     .replace(
-`    this.networkInfo$ = this.appService.getNetworkInfo().pipe(
-      shareReplay({ refCount: true, bufferSize: 1 })
-    );
-`,
+/(    this\.networkInfo\$ = this\.appService\.getNetworkInfo\(\)\.pipe\(\r?\n      shareReplay\(\{ refCount: true, bufferSize: 1 \}\)\r?\n    \);\r?\n)/,
 `    this.networkInfo$ = this.appService.getNetworkInfo().pipe(
       shareReplay({ refCount: true, bufferSize: 1 })
     );
@@ -500,6 +516,9 @@ if (!splashComponentSource.includes('public addresses$: Observable<any[]>;')) {
     );
 `);
   fs.writeFileSync(splashComponent, splashComponentSource);
+}
+if (!appServiceSource.includes('getAddresses()') || !splashComponentSource.includes('public addresses$: Observable<any[]>;') || !splashComponentSource.includes('this.addresses$ =')) {
+  throw new Error('Public Pool frontend address patch failed');
 }
 
 const splashTemplate = path.join(frontend, 'src/app/components/splash/splash.component.html');
@@ -537,13 +556,16 @@ if (!splashTemplateSource.includes('class="card address-card"')) {
         <div class="col-12" *ngIf="accounting$ | async as accounting">`);
   fs.writeFileSync(splashTemplate, splashTemplateSource);
 }
-if (!splashTemplateSource.includes('Rejected {{(entry.rejectedShares || 0) | numberSuffix}}')) {
+if (!splashTemplateSource.includes('Invalid {{(entry.rejectedShares || 0) | numberSuffix}}')) {
   splashTemplateSource = splashTemplateSource.replace(
 `                            <span>{{(entry.shares || 0) | numberSuffix}} shares</span>
                             <span>Best {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`,
 `                            <span>{{(entry.shares || 0) | numberSuffix}} shares</span>
-                            <span>Rejected {{(entry.rejectedShares || 0) | numberSuffix}}</span>
+                            <span>Invalid {{(entry.rejectedShares || 0) | numberSuffix}}</span>
                             <span>Best {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`);
+  splashTemplateSource = splashTemplateSource.replace(
+    'Rejected {{(entry.rejectedShares || 0) | numberSuffix}}',
+    'Invalid {{(entry.rejectedShares || 0) | numberSuffix}}');
   fs.writeFileSync(splashTemplate, splashTemplateSource);
 }
 
@@ -601,6 +623,17 @@ if (!splashStylesSource.includes('.address-list')) {
     }`);
   fs.writeFileSync(splashStyles, splashStylesSource);
 }
+
+const layoutService = path.join(frontend, 'src/app/layout/service/app.layout.service.ts');
+let layoutServiceSource = fs.readFileSync(layoutService, 'utf8');
+layoutServiceSource = layoutServiceSource.replace(
+  /(state: LayoutState = \{[\s\S]*?staticMenuDesktopInactive:) false,/,
+  '$1 true,'
+);
+if (!/state: LayoutState = \{[\s\S]*?staticMenuDesktopInactive: true,/.test(layoutServiceSource)) {
+  throw new Error('Public Pool frontend collapsed sidebar patch failed');
+}
+fs.writeFileSync(layoutService, layoutServiceSource);
 JS
 
 FRONTEND_SRC="$FRONTEND_SRC" "$NODE_BIN" <<'JS'
@@ -610,36 +643,25 @@ const path = require('path');
 const frontend = process.env.FRONTEND_SRC;
 const dashboardTemplate = path.join(frontend, 'src/app/components/dashboard/dashboard.component.html');
 let dashboardSource = fs.readFileSync(dashboardTemplate, 'utf8');
-if (!dashboardSource.includes('<span>Rejected Shares</span>')) {
+if (!dashboardSource.includes('<span>Invalid Shares</span>')) {
   dashboardSource = dashboardSource.replace(
-`                    <div class="snapshot-metric">
-                        <span>Accepted Shares</span>
-                        <strong>{{clientInfo.accounting?.totalAcceptedShares | numberSuffix}}</strong>
-                        <small>{{clientInfo.accounting?.acceptedSharesLast10Minutes | numberSuffix}} last 10m</small>
-                    </div>
+/(\s+<div class="snapshot-metric">\s+<span>Accepted Shares<\/span>[\s\S]*?<\/div>)(\s+<div class="snapshot-metric">\s+<span>Accumulated Work<\/span>)/,
+`$1
 
                     <div class="snapshot-metric">
-                        <span>Accumulated Work</span>`,
-`                    <div class="snapshot-metric">
-                        <span>Accepted Shares</span>
-                        <strong>{{clientInfo.accounting?.totalAcceptedShares | numberSuffix}}</strong>
-                        <small>{{clientInfo.accounting?.acceptedSharesLast10Minutes | numberSuffix}} last 10m</small>
-                    </div>
-
-                    <div class="snapshot-metric">
-                        <span>Rejected Shares</span>
+                        <span>Invalid Shares</span>
                         <strong>{{(clientInfo.accounting?.rejectedShares || 0) | numberSuffix}}</strong>
                         <small>{{(clientInfo.accounting?.rejectedSharesLast10Minutes || 0) | numberSuffix}} last 10m</small>
-                    </div>
-
-                    <div class="snapshot-metric">
-                        <span>Accumulated Work</span>`);
+                    </div>$2`);
   fs.writeFileSync(dashboardTemplate, dashboardSource);
 }
 dashboardSource = fs.readFileSync(dashboardTemplate, 'utf8');
 if (dashboardSource.includes('<small>Rejected</small>')) {
   dashboardSource = dashboardSource.replace('<small>Rejected</small>', '<small>{{(clientInfo.accounting?.rejectedSharesLast10Minutes || 0) | numberSuffix}} last 10m</small>');
   fs.writeFileSync(dashboardTemplate, dashboardSource);
+}
+if (!dashboardSource.includes('<span>Invalid Shares</span>')) {
+  throw new Error('Public Pool frontend invalid shares patch failed');
 }
 
 const dashboardStyles = path.join(frontend, 'src/app/components/dashboard/dashboard.component.scss');
