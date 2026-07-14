@@ -151,7 +151,7 @@ void BitcoinCoreService::applyRpcResult(const QString& method, const QJsonValue&
         m_status.peers = value.toObject().value("connections").toInt();
     }
 
-    setState(ServiceState::Running, "RPC verfügbar");
+    setState(ServiceState::Running, "RPC erreichbar");
     Q_EMIT nodeStatusChanged(m_status);
     if (wasUnavailable) {
         Q_EMIT rpcAvailable();

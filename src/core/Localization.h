@@ -90,7 +90,7 @@ inline QString appServiceDetail(const QString& language, const QString& detail)
     if (detail == "Startet") return "Starting";
     if (detail == "Läuft") return "Running";
     if (detail == "RPC nicht verfügbar") return "RPC unavailable";
-    if (detail == "RPC verfügbar") return "RPC available";
+    if (detail == "RPC erreichbar") return "RPC reachable";
     if (detail == "Warte auf Mempool DB") return "Waiting for Mempool DB";
     if (detail == "Mempool DB Port belegt, aber Datenbank ist nicht initialisiert") return "Mempool DB port is occupied, but the database is not initialized";
     if (detail == "Mempool DB konnte nicht zurückgesetzt werden") return "Mempool DB could not be reset";
