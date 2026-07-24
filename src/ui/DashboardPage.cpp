@@ -10,6 +10,7 @@
 #include <QFrame>
 #include <QResizeEvent>
 #include <QStorageInfo>
+#include <QStringList>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -419,13 +420,15 @@ QString DashboardPage::formatBestShare(double bestShare) const
     if (bestShare <= 0.0 || !std::isfinite(bestShare)) {
         return "0";
     }
-    if (bestShare >= 1000000.0) {
-        return QString("%1M").arg(bestShare / 1000000.0, 0, 'f', 2);
+    static const QStringList suffixes{"", "K", "M", "G", "T", "P", "E"};
+    double value = bestShare;
+    int suffixIndex = 0;
+    while (value >= 1000.0 && suffixIndex < suffixes.size() - 1) {
+        value /= 1000.0;
+        ++suffixIndex;
     }
-    if (bestShare >= 1000.0) {
-        return QString("%1K").arg(bestShare / 1000.0, 0, 'f', 2);
-    }
-    return QString::number(bestShare, 'f', bestShare >= 100.0 ? 0 : 2);
+    const int decimals = value >= 100.0 ? 0 : 2;
+    return QString("%1%2").arg(value, 0, 'f', decimals).arg(suffixes.at(suffixIndex));
 }
 
 QString DashboardPage::formatBestSharePercent(double bestShare, double networkDifficulty) const

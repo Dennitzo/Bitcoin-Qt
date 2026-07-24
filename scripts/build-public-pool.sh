@@ -213,7 +213,7 @@ if (!clientStatisticsServiceSource.includes('rejectedSharesLast10Minutes')) {
                 COALESCE(SUM(CASE WHEN time > ? THEN acceptedCount ELSE 0 END), 0) AS acceptedSharesLast10Minutes,
                 COALESCE(SUM(CASE WHEN time > ? THEN rejectedCount ELSE 0 END), 0) AS rejectedSharesLast10Minutes,
                 COALESCE(SUM(CASE WHEN time > ? THEN shares ELSE 0 END), 0) AS creditedDifficultyLastHour,
-                COALESCE(MAX(shares), 0) AS bestSubmissionDifficulty,
+                COALESCE((SELECT MAX("bestDifficulty") FROM address_settings_entity), 0) AS bestSubmissionDifficulty,
                 COALESCE((SUM(CASE WHEN time > ? THEN shares ELSE 0 END) * 4294967296) / 3600, 0) AS hashRateLastHour
             FROM client_statistics_entity;
         \`;
@@ -302,6 +302,16 @@ if (!clientStatisticsServiceSource.includes('rejectedSharesLast10Minutes')) {
         'insert ClientStatisticsService accounting methods');
     }
   }
+  fs.writeFileSync(clientStatisticsService, clientStatisticsServiceSource);
+}
+
+// Keep the public Current Round best share consistent with the per-address
+// bestDifficulty value, which is reset at the beginning of each pool round.
+const currentRoundBestShare = clientStatisticsServiceSource.indexOf('COALESCE(MAX(shares), 0) AS bestSubmissionDifficulty');
+if (currentRoundBestShare >= 0) {
+  clientStatisticsServiceSource = clientStatisticsServiceSource.slice(0, currentRoundBestShare)
+    + 'COALESCE((SELECT MAX("bestDifficulty") FROM address_settings_entity), 0) AS bestSubmissionDifficulty'
+    + clientStatisticsServiceSource.slice(currentRoundBestShare + 'COALESCE(MAX(shares), 0) AS bestSubmissionDifficulty'.length);
   fs.writeFileSync(clientStatisticsService, clientStatisticsServiceSource);
 }
 
@@ -539,8 +549,9 @@ if (!splashTemplateSource.includes('class="card address-card"')) {
                     <div class="address-list" *ngIf="addresses.length > 0; else emptyAddresses">
                         <a class="address-row" *ngFor="let entry of addresses" [routerLink]="['app', entry.address]">
                             <code>{{entry.address}}</code>
-                            <span>{{(entry.shares || 0) | numberSuffix}} shares</span>
-                            <span>Best {{(entry.bestDifficulty || 0) | numberSuffix}}</span>
+                            <span><strong>Shares</strong> {{(entry.shares || 0) | numberSuffix}}</span>
+                            <span><strong>Invalid</strong> {{(entry.rejectedShares || 0) | numberSuffix}}</span>
+                            <span><strong>Best</strong> {{(entry.bestDifficulty || 0) | numberSuffix}}</span>
                         </a>
                     </div>
                     <ng-template #emptyAddresses>
@@ -558,11 +569,11 @@ if (!splashTemplateSource.includes('class="card address-card"')) {
 }
 if (!splashTemplateSource.includes('Invalid {{(entry.rejectedShares || 0) | numberSuffix}}')) {
   splashTemplateSource = splashTemplateSource.replace(
-`                            <span>{{(entry.shares || 0) | numberSuffix}} shares</span>
-                            <span>Best {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`,
-`                            <span>{{(entry.shares || 0) | numberSuffix}} shares</span>
-                            <span>Invalid {{(entry.rejectedShares || 0) | numberSuffix}}</span>
-                            <span>Best {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`);
+`                            <span><strong>Shares</strong> {{(entry.shares || 0) | numberSuffix}}</span>
+                            <span><strong>Best</strong> {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`,
+`                            <span><strong>Shares</strong> {{(entry.shares || 0) | numberSuffix}}</span>
+                            <span><strong>Invalid</strong> {{(entry.rejectedShares || 0) | numberSuffix}}</span>
+                            <span><strong>Best</strong> {{(entry.bestDifficulty || 0) | numberSuffix}}</span>`);
   splashTemplateSource = splashTemplateSource.replace(
     'Rejected {{(entry.rejectedShares || 0) | numberSuffix}}',
     'Invalid {{(entry.rejectedShares || 0) | numberSuffix}}');
@@ -576,34 +587,11 @@ if (!splashStylesSource.includes('.address-list')) {
 `.round-card {
     padding: 1.5rem;
 }`,
-`.address-list {
-    border: 1px solid var(--surface-border);
-    margin-top: 1rem;
-    overflow: hidden;
-}
-
-.address-row {
-    align-items: center;
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-    padding: 0.85rem 1rem;
-    text-decoration: none;
-    color: var(--text-color);
-}
-
-.address-row+.address-row {
-    border-top: 1px solid var(--surface-border);
-}
-
-.address-row code {
-    overflow-wrap: anywhere;
-}
-
-.address-row span {
-    color: var(--text-color-secondary);
-    white-space: nowrap;
-}
+`.address-list { margin-top: 1rem; }
+.address-row { align-items: center; column-gap: 1.25rem; display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, max-content); padding: .85rem 1rem; color: var(--text-color); }
+.address-row+.address-row { border-top: 1px solid var(--surface-border); }
+.address-row code { overflow-wrap: anywhere; }
+.address-row span { color: var(--text-color-secondary); display: flex; white-space: nowrap; }
 
 .round-card {
     padding: 1.5rem;
@@ -615,6 +603,11 @@ if (!splashStylesSource.includes('.address-list')) {
     }`,
 `    .address-row {
         grid-template-columns: 1fr;
+    }
+
+    .address-row {
+        grid-template-columns: 1fr;
+        row-gap: 0.35rem;
     }
 
     .hero-footer {
